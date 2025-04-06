@@ -12,26 +12,17 @@ import {
   type ImmutableProperty,
   type StatefulProperty,
 } from "./base-system";
-import { formatState } from "./test-utils";
+import { runTestSuite, type TestCase } from "./test-utils";
 
 /*
   SYSTEM COMPONENTS
-
-  These components are the relevant unitsmake up the system.
 */
 type SystemComponent = BaseSystemComponent<"person" | "fridge">;
 
-// System data model
 type MovementMethod = "walking" | "wheelchair";
+
 type FoodType = "pizza" | "salad" | "ice cream";
 
-/*
-  SYSTEM COMPONENT DATA MODEL
-
-  A component can hold data and state in order to describe its features and behavior.
-  Properties marked as "immutable" cannot be changed after initialization,
-  while "stateful" properties can be modified during the system's lifecycle.
-*/
 type SystemComponentDataModel = BaseSystemComponentDataModel<
   SystemComponent,
   {
@@ -49,33 +40,19 @@ type SystemComponentDataModel = BaseSystemComponentDataModel<
   }
 >;
 
-/*
-  SYSTEM EVENTS
-
-  All events must be named in the past tense verb format, nothing that "something happened"
-  e.g. "FELT_HUNGER"
-  e.g. "FINISHED_MOVING"
-*/
 type SystemEvent = BaseSystemEvent<
+  | "SYSTEM_INITIALIZED"
   | "FELT_HUNGER"
   | "STARTED_MOVING"
   | "ARRIVED_AT_FRIDGE"
   | "OPENED_FRIDGE"
   | "FOOD_FOUND"
-  | "ATE_FOOD"
-  | "CLOSED_FRIDGE"
 >;
 
-/*
-  SYSTEM EVENTS DATA MODEL
-
-  Some event may have data associated with them (similar to a click event passing an event with info about the element that was clicked, etc.)
-
-  This data can make it easier to understand the context of the event.
-*/
 type SystemEventDataModel = BaseSystemEventDataModel<
   SystemEvent,
   {
+    SYSTEM_INITIALIZED: Record<string, never>;
     FELT_HUNGER: {
       instanceId: `person_${string}`;
       food: FoodType[];
@@ -97,21 +74,12 @@ type SystemEventDataModel = BaseSystemEventDataModel<
       movementMethod: MovementMethod;
       food: FoodType[];
     };
-    ATE_FOOD: {
-      instanceId: `person_${string}`;
-      food: FoodType[];
-    };
-    CLOSED_FRIDGE: {
-      instanceId: `fridge_${string}`;
-      movementMethod: MovementMethod;
-    };
-    SYSTEM_INITIALIZED: Record<string, never>;
   }
 >;
 
-type SystemData = BaseSystemData<SystemComponent, SystemComponentDataModel>;
-
 type SystemUpdate = BaseSystemUpdate<SystemComponent, SystemComponentDataModel>;
+
+type SystemData = BaseSystemData<SystemComponent, SystemComponentDataModel>;
 
 type System = BaseSystem<
   SystemComponent,
@@ -133,11 +101,7 @@ const system: System = {
     events: {
       STARTED_MOVING: {
         action: async (
-          data: {
-            instanceId: `person_${string}`;
-            movementMethod: MovementMethod;
-          },
-          system,
+          eventData: SystemEventDataModel["STARTED_MOVING"],
         ): Promise<
           ActionReturnType<SystemComponent, SystemComponentDataModel>
         > => {
@@ -146,7 +110,7 @@ const system: System = {
               data: {
                 movementMethod: {
                   type: "stateful",
-                  value: data.movementMethod,
+                  value: eventData.movementMethod,
                 },
               },
             },
@@ -155,15 +119,18 @@ const system: System = {
         send: [
           {
             event: "ARRIVED_AT_FRIDGE",
-            data: { instanceId: "person_1", movementMethod: "walking" },
+            data: {
+              instanceId: "person_2",
+              movementMethod: "walking",
+            } as SystemEventDataModel["ARRIVED_AT_FRIDGE"],
           },
         ],
       },
       FELT_HUNGER: {
-        action: async (data: {
-          instanceId: `person_${string}`;
-          food: FoodType[];
-        }): Promise<
+        action: async (
+          eventData: SystemEventDataModel["FELT_HUNGER"],
+          state: SystemData,
+        ): Promise<
           ActionReturnType<SystemComponent, SystemComponentDataModel>
         > => {
           return {
@@ -171,6 +138,7 @@ const system: System = {
               data: {
                 isHungry: { type: "stateful", value: true },
                 movementMethod: { type: "stateful", value: "walking" },
+                food: { type: "stateful", value: [] },
               },
             },
           };
@@ -178,7 +146,10 @@ const system: System = {
         send: [
           {
             event: "STARTED_MOVING",
-            data: { instanceId: "person_1", movementMethod: "walking" },
+            data: {
+              instanceId: "person_2",
+              movementMethod: "walking",
+            } as SystemEventDataModel["STARTED_MOVING"],
           },
         ],
       },
@@ -221,17 +192,7 @@ const system: System = {
   },
 };
 
-type SystemManager = BaseSystemManager<
-  System,
-  SystemComponent,
-  SystemComponentDataModel,
-  SystemEvent,
-  SystemUpdate,
-  SystemData,
-  SystemEventDataModel
->;
-
-export const manager: SystemManager = createSystemManager<
+const manager = createSystemManager<
   System,
   SystemComponent,
   SystemComponentDataModel,
@@ -241,106 +202,121 @@ export const manager: SystemManager = createSystemManager<
   SystemEventDataModel
 >(system);
 
-// Example usage and tests
-async function testSystemManager() {
-  console.log("Initial state:", formatState(manager.state));
+// Test cases
+const testCases: TestCase<
+  SystemComponent,
+  SystemComponentDataModel,
+  SystemEvent,
+  SystemData,
+  SystemEventDataModel
+>[] = [
+  {
+    name: "System initialization",
+    validate: (state: SystemData) => {
+      // Check person state
+      const person = state.person.data;
+      if (person.isHungry.value !== false) return false;
+      if (person.movementMethod.value !== "walking") return false;
+      if (person.food.value.length !== 0) return false;
 
-  // Reset instance IDs before starting tests
-  manager.resetInstanceIds();
+      // Check fridge state
+      const fridge = state.fridge.data;
+      if (fridge.isOpen.value !== false) return false;
+      if (fridge.food.value.length !== 3) return false;
+      if (!fridge.food.value.includes("pizza")) return false;
+      if (!fridge.food.value.includes("salad")) return false;
+      if (!fridge.food.value.includes("ice cream")) return false;
 
-  // Test instance ID uniqueness
-  console.log("\nTesting instance ID uniqueness...");
-
-  try {
-    // This should fail at runtime because we're using the wrong instance ID
-    await manager.processEvent("OPENED_FRIDGE", {
+      return true;
+    },
+  },
+  {
+    name: "Instance ID type validation",
+    initialEvent: "OPENED_FRIDGE",
+    initialEventData: {
       instanceId: "person_1",
       movementMethod: "walking",
-    });
-  } catch {
-    console.log("✅ Runtime check correctly prevents wrong instance IDs");
-  }
-
-  // Reset instance IDs before duplicate ID test
-  manager.resetInstanceIds();
-
-  // Test duplicate instance IDs
-  console.log("\nTesting duplicate instance IDs...");
-
-  let duplicateAllowed = false;
-
-  try {
-    // First fridge with ID "fridge_1"
-    await manager.processEvent("OPENED_FRIDGE", {
+    },
+    skipInitialization: true,
+    expectedError: {
+      message: "Invalid instance ID: person_1 for event OPENED_FRIDGE",
+    },
+  },
+  {
+    name: "Duplicate instance ID prevention",
+    initialEvent: "OPENED_FRIDGE",
+    initialEventData: {
       instanceId: "fridge_1",
       movementMethod: "walking",
-    });
-
-    // Second fridge with the same ID "fridge_1" - this should fail
-    await manager.processEvent("OPENED_FRIDGE", {
-      instanceId: "fridge_1",
-      movementMethod: "wheelchair",
-    });
-
-    duplicateAllowed = true;
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes("Duplicate instance ID")
-    ) {
-      console.log("✅ Runtime check correctly prevents duplicate instance IDs");
-    } else {
-      // Re-throw if it's not the error we're expecting
-      throw error;
-    }
-  }
-
-  if (duplicateAllowed) {
-    console.error("❌ Test failed: System allowed duplicate instance IDs");
-  }
-
-  // Reset instance IDs before remaining tests
-  manager.resetInstanceIds();
-
-  // Test FELT_HUNGER event
-  console.log("\nProcessing FELT_HUNGER event...");
-  try {
-    await manager.processEvent("FELT_HUNGER", {
+    },
+    skipInitialization: true,
+    expectedError: {
+      message: "Duplicate instance ID: fridge_1",
+    },
+  },
+  {
+    name: "FELT_HUNGER event updates person state",
+    initialEvent: "FELT_HUNGER",
+    initialEventData: {
       instanceId: "person_2",
       food: ["pizza"],
-    });
-    console.log("After FELT_HUNGER:", formatState(manager.state.person.data));
-  } catch (error) {
-    console.error("Error in FELT_HUNGER test:", error);
-  }
-
-  // Test STARTED_MOVING event
-  console.log("\nProcessing STARTED_MOVING event...");
-  try {
-    await manager.processEvent("STARTED_MOVING", {
+    },
+    skipInitialization: false,
+    expectedState: {
+      person: {
+        data: {
+          isHungry: { type: "stateful", value: true },
+        },
+      },
+    },
+    expectedNextEvents: ["STARTED_MOVING"],
+  },
+  {
+    name: "STARTED_MOVING event updates movement method",
+    initialEvent: "STARTED_MOVING",
+    initialEventData: {
       instanceId: "person_3",
       movementMethod: "wheelchair",
-    });
-    console.log(
-      "After STARTED_MOVING:",
-      formatState(manager.state.person.data),
-    );
-  } catch (error) {
-    console.error("Error in STARTED_MOVING test:", error);
-  }
-
-  // Test OPENED_FRIDGE event
-  console.log("\nProcessing OPENED_FRIDGE event...");
-  try {
-    await manager.processEvent("OPENED_FRIDGE", {
+    },
+    skipInitialization: true,
+    expectedState: {
+      person: {
+        data: {
+          movementMethod: { type: "stateful", value: "wheelchair" },
+        },
+      },
+    },
+    expectedNextEvents: ["ARRIVED_AT_FRIDGE"],
+  },
+  {
+    name: "OPENED_FRIDGE event opens fridge",
+    initialEvent: "OPENED_FRIDGE",
+    initialEventData: {
       instanceId: "fridge_2",
-      movementMethod: "wheelchair",
-    });
-    console.log("After OPENED_FRIDGE:", formatState(manager.state.fridge.data));
-  } catch (error) {
-    console.error("Error in OPENED_FRIDGE test:", error);
-  }
-}
+      movementMethod: "walking",
+    },
+    skipInitialization: true,
+    expectedState: {
+      fridge: {
+        data: {
+          isOpen: { type: "stateful", value: true },
+        },
+      },
+    },
+    expectedNextEvents: ["FOOD_FOUND"],
+  },
+];
 
-// Run the tests
-void testSystemManager();
+// Run the test suite
+void runTestSuite(
+  testCases,
+  manager as unknown as BaseSystemManager<
+    System,
+    SystemComponent,
+    SystemComponentDataModel,
+    SystemEvent,
+    SystemUpdate,
+    SystemData,
+    SystemEventDataModel
+  >,
+);

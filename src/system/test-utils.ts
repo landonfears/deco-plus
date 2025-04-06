@@ -86,10 +86,11 @@ export interface TestCase<
   >,
   SE extends BaseSystemEvent<string>,
   SD extends BaseSystemData<T, CD>,
+  ED extends BaseSystemEventDataModel<SE, Record<SE, Record<string, unknown>>>,
 > {
   name: string;
   initialEvent?: SE;
-  initialEventData?: Record<string, never>;
+  initialEventData?: ED[SE];
   skipInitialization?: boolean;
   expectedState?: {
     [K in keyof SD]?: {
@@ -103,6 +104,9 @@ export interface TestCase<
   };
   expectedNextEvents?: SE[];
   validate?: (state: SD) => boolean;
+  expectedError?: {
+    message: string;
+  };
 }
 
 export async function runTestCase<
@@ -115,9 +119,12 @@ export async function runTestCase<
   SE extends BaseSystemEvent<string>,
   SU extends BaseSystemUpdate<T, CD>,
   SD extends BaseSystemData<T, CD>,
-  ED extends BaseSystemEventDataModel<SE, Record<SE, unknown>>,
+  ED extends BaseSystemEventDataModel<
+    SE,
+    Record<SE, { instanceId?: string } | Record<string, never>>
+  >,
 >(
-  testCase: TestCase<T, CD, SE, SD>,
+  testCase: TestCase<T, CD, SE, SD, ED>,
   manager: BaseSystemManager<BS, T, CD, SE, SU, SD, ED>,
 ): Promise<void> {
   console.log(`\n🧪 Running test: ${testCase.name}`);
@@ -129,10 +136,35 @@ export async function runTestCase<
 
   if (testCase.initialEvent) {
     console.log(`Processing initial event: ${testCase.initialEvent}...`);
-    await manager.processEvent(
-      testCase.initialEvent,
-      (testCase.initialEventData ?? {}) as ED[SE],
-    );
+    try {
+      await manager.processEvent(
+        testCase.initialEvent,
+        (testCase.initialEventData ?? {}) as ED[SE],
+      );
+
+      // If we have an expected error but no error was thrown, fail the test
+      if (testCase.expectedError) {
+        throw new TestError(
+          `Expected error with message containing "${testCase.expectedError.message}" but no error was thrown`,
+        );
+      }
+    } catch (error) {
+      // If we have an expected error, check if the error message matches
+      if (testCase.expectedError) {
+        if (
+          error instanceof Error &&
+          error.message.includes(testCase.expectedError.message)
+        ) {
+          console.log(`✅ Test "${testCase.name}" passed with expected error!`);
+          return;
+        }
+        throw new TestError(
+          `Expected error message to contain "${testCase.expectedError.message}" but got "${error instanceof Error ? error.message : String(error)}"`,
+        );
+      }
+      // If we don't have an expected error, re-throw
+      throw error;
+    }
   }
 
   // Validate expected state
@@ -205,9 +237,12 @@ export async function runTestSuite<
   SE extends BaseSystemEvent<string>,
   SU extends BaseSystemUpdate<T, CD>,
   SD extends BaseSystemData<T, CD>,
-  ED extends BaseSystemEventDataModel<SE, Record<SE, unknown>>,
+  ED extends BaseSystemEventDataModel<
+    SE,
+    Record<SE, { instanceId?: string } | Record<string, never>>
+  >,
 >(
-  testCases: TestCase<T, CD, SE, SD>[],
+  testCases: TestCase<T, CD, SE, SD, ED>[],
   manager: BaseSystemManager<BS, T, CD, SE, SU, SD, ED>,
 ): Promise<void> {
   console.log("Starting test suite...");
