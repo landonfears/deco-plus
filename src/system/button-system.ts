@@ -12,7 +12,13 @@ import {
   type ImmutableProperty,
   type StatefulProperty,
 } from "./base-system";
-import { formatState } from "./utils";
+import {
+  formatState,
+  runTestSuite,
+  TestError,
+  type PropertyValue,
+  type TestCase,
+} from "./test-utils";
 
 /*
   SYSTEM COMPONENTS
@@ -538,4 +544,61 @@ async function testButtonSystem(scenario: Scenario, options: TestOptions = {}) {
 // });
 
 // Or run the combined scenario
-void testButtonSystem("combined");
+// void testButtonSystem("combined");
+
+// Example test cases
+const testCases: TestCase<
+  SystemComponent,
+  SystemComponentDataModel,
+  SystemEvent,
+  SystemData
+>[] = [
+  {
+    name: "System initialization",
+    expectedState: {
+      internalDev: {
+        data: {
+          hasReactApp: { type: "stateful", value: true },
+        },
+      },
+    },
+    expectedNextEvents: ["CREATED_REACT_APP"],
+  },
+  {
+    name: "End user journey",
+    initialEvent: "VISITED_SITE",
+    skipInitialization: true,
+    expectedState: {
+      endUser: {
+        data: {
+          hasVisitedSite: { type: "stateful", value: true },
+        },
+      },
+    },
+  },
+  {
+    name: "Button click increments",
+    initialEvent: "CLICKED_BUTTON",
+    skipInitialization: true,
+    validate: (state) => {
+      return (
+        state.endUser.data.clickCount.value === 1 &&
+        state.button.data.clickCount.value === 1
+      );
+    },
+  },
+];
+
+// Run the test suite
+void runTestSuite(
+  testCases,
+  manager as unknown as BaseSystemManager<
+    System,
+    SystemComponent,
+    SystemComponentDataModel,
+    SystemEvent,
+    SystemUpdate,
+    SystemData,
+    SystemEventDataModel
+  >,
+);

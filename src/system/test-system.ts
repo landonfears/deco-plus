@@ -1,7 +1,6 @@
 import {
   createSystemManager,
   type BaseSystem,
-  // BaseComponentData,
   type BaseSystemComponent,
   type BaseSystemComponentDataModel,
   type BaseSystemData,
@@ -13,7 +12,7 @@ import {
   type ImmutableProperty,
   type StatefulProperty,
 } from "./base-system";
-import { formatState } from "./utils";
+import { formatState } from "./test-utils";
 
 /*
   SYSTEM COMPONENTS
