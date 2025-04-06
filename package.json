@@ -13,6 +13,7 @@
     "lint:fix": "next lint --fix",
     "preview": "next build && next start",
     "start": "next start",
+    "test": "tsx src/system/fridge-system.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

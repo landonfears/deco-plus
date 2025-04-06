@@ -231,6 +231,27 @@ const testCases: TestCase<
     },
   },
   {
+    name: "Global state after hunger and fridge interaction",
+    initialEvent: "FELT_HUNGER",
+    initialEventData: {
+      instanceId: "person_1",
+      food: ["pizza"],
+    },
+    expectedState: {
+      person: {
+        data: {
+          isHungry: { type: "stateful", value: true },
+        },
+      },
+      fridge: {
+        data: {
+          isOpen: { type: "stateful", value: false },
+        },
+      },
+    },
+    expectedNextEvents: ["STARTED_MOVING"],
+  },
+  {
     name: "Instance ID type validation",
     initialEvent: "OPENED_FRIDGE",
     initialEventData: {
@@ -304,6 +325,23 @@ const testCases: TestCase<
       },
     },
     expectedNextEvents: ["FOOD_FOUND"],
+  },
+  {
+    name: "Instance state after person movement",
+    initialEvent: "STARTED_MOVING",
+    initialEventData: {
+      instanceId: "person_3",
+      movementMethod: "wheelchair",
+    },
+    skipInitialization: true,
+    expectedState: {
+      person: {
+        data: {
+          movementMethod: { type: "stateful", value: "wheelchair" },
+        },
+      },
+    },
+    expectedNextEvents: ["ARRIVED_AT_FRIDGE"],
   },
 ];
 
