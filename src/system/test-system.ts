@@ -12,13 +12,22 @@ import {
   type ActionReturnType,
 } from "./base-system";
 
-// System components
+/*
+  SYSTEM COMPONENTS
+
+  These components are the relevant unitsmake up the system.
+*/
 type SystemComponent = BaseSystemComponent<"person" | "fridge">;
 
 // System data model
 type MovementMethod = "walking" | "wheelchair";
 type FoodType = "pizza" | "salad" | "ice cream";
 
+/*
+  SYSTEM COMPONENT DATA MODEL
+
+  A component can hold data and state in order to describe its features and behavior.
+*/
 type SystemComponentDataModel = BaseSystemComponentDataModel<
   SystemComponent,
   {
@@ -36,7 +45,13 @@ type SystemComponentDataModel = BaseSystemComponentDataModel<
   }
 >;
 
-// System events
+/*
+  SYSTEM EVENTS
+
+  All events must be named in the past tense verb format, nothing that "something happened"
+  e.g. "FELT_HUNGER"
+  e.g. "FINISHED_MOVING"
+*/
 type SystemEvent = BaseSystemEvent<
   | "FELT_HUNGER"
   | "STARTED_MOVING"
@@ -47,6 +62,13 @@ type SystemEvent = BaseSystemEvent<
   | "CLOSED_FRIDGE"
 >;
 
+/*
+  SYSTEM EVENTS DATA MODEL
+
+  Some event may have data associated with them (similar to a click event passing an event with info about the element that was clicked, etc.)
+
+  This data can make it easier to understand the context of the event.
+*/
 type SystemEventDataModel = BaseSystemEventDataModel<
   SystemEvent,
   {
@@ -191,6 +213,7 @@ export const manager: SystemManager = createSystemManager<
   SystemData,
   SystemEventDataModel
 >(system);
+
 // Example usage and tests
 async function testSystemManager() {
   console.log("Initial state:", manager.state);
