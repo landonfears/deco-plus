@@ -119,15 +119,15 @@ export async function runTestCase<
   SE extends BaseSystemEvent<string>,
   SU extends BaseSystemUpdate<T, CD>,
   SD extends BaseSystemData<T, CD>,
-  ED extends BaseSystemEventDataModel<
-    SE,
-    Record<SE, { instanceId?: string } | Record<string, never>>
-  >,
+  ED extends BaseSystemEventDataModel<SE, Record<SE, Record<string, unknown>>>,
 >(
   testCase: TestCase<T, CD, SE, SD, ED>,
   manager: BaseSystemManager<BS, T, CD, SE, SU, SD, ED>,
 ): Promise<void> {
   console.log(`\n🧪 Running test: ${testCase.name}`);
+
+  // Reset instance IDs before each test
+  manager.resetInstanceIds();
 
   if (!testCase.skipInitialization) {
     console.log("Initializing system...");

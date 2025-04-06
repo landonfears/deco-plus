@@ -275,7 +275,7 @@ const testCases: TestCase<
     name: "STARTED_MOVING event updates movement method",
     initialEvent: "STARTED_MOVING",
     initialEventData: {
-      instanceId: "person_3",
+      instanceId: "person_2",
       movementMethod: "wheelchair",
     },
     skipInitialization: true,
@@ -292,7 +292,7 @@ const testCases: TestCase<
     name: "OPENED_FRIDGE event opens fridge",
     initialEvent: "OPENED_FRIDGE",
     initialEventData: {
-      instanceId: "fridge_2",
+      instanceId: "fridge_1",
       movementMethod: "walking",
     },
     skipInitialization: true,
