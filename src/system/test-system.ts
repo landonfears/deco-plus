@@ -10,6 +10,8 @@ import {
   type BaseSystemManager,
   type BaseSystemUpdate,
   type ActionReturnType,
+  type ImmutableProperty,
+  type StatefulProperty,
 } from "./base-system";
 
 /*
@@ -27,20 +29,22 @@ type FoodType = "pizza" | "salad" | "ice cream";
   SYSTEM COMPONENT DATA MODEL
 
   A component can hold data and state in order to describe its features and behavior.
+  Properties marked as "immutable" cannot be changed after initialization,
+  while "stateful" properties can be modified during the system's lifecycle.
 */
 type SystemComponentDataModel = BaseSystemComponentDataModel<
   SystemComponent,
   {
     person: {
-      id: string;
-      isHungry: boolean;
-      movementMethod: MovementMethod;
-      food: FoodType[];
+      id: ImmutableProperty<string>;
+      isHungry: StatefulProperty<boolean>;
+      movementMethod: StatefulProperty<MovementMethod>;
+      food: StatefulProperty<FoodType[]>;
     };
     fridge: {
-      id: string;
-      food: FoodType[];
-      isOpen: boolean;
+      id: ImmutableProperty<string>;
+      food: StatefulProperty<FoodType[]>;
+      isOpen: StatefulProperty<boolean>;
     };
   }
 >;
@@ -114,10 +118,10 @@ type System = BaseSystem<
 const system: System = {
   person: {
     data: {
-      id: "person",
-      isHungry: false,
-      movementMethod: "walking",
-      food: [],
+      id: { type: "immutable", value: "person" },
+      isHungry: { type: "stateful", value: false },
+      movementMethod: { type: "stateful", value: "walking" },
+      food: { type: "stateful", value: [] },
     },
     events: {
       STARTED_MOVING: {
@@ -127,11 +131,14 @@ const system: System = {
         ): Promise<
           ActionReturnType<SystemComponent, SystemComponentDataModel>
         > => {
-          console.log("Person is hungry:", system.person.data.isHungry);
+          console.log("Person is hungry:", system.person.data.isHungry.value);
           return {
             person: {
               data: {
-                movementMethod: data.movementMethod,
+                movementMethod: {
+                  type: "stateful",
+                  value: data.movementMethod,
+                },
               },
             },
           };
@@ -152,8 +159,8 @@ const system: System = {
           return {
             person: {
               data: {
-                isHungry: true,
-                movementMethod: "walking",
+                isHungry: { type: "stateful", value: true },
+                movementMethod: { type: "stateful", value: "walking" },
               },
             },
           };
@@ -172,7 +179,11 @@ const system: System = {
           ActionReturnType<SystemComponent, SystemComponentDataModel>
         > => {
           return {
-            fridge: { data: { isOpen: true } },
+            fridge: {
+              data: {
+                isOpen: { type: "stateful", value: true },
+              },
+            },
           };
         },
         send: [
@@ -186,9 +197,9 @@ const system: System = {
   },
   fridge: {
     data: {
-      id: "fridge",
-      food: ["pizza", "salad", "ice cream"],
-      isOpen: false,
+      id: { type: "immutable", value: "fridge" },
+      food: { type: "stateful", value: ["pizza", "salad", "ice cream"] },
+      isOpen: { type: "stateful", value: false },
     },
     events: {},
   },

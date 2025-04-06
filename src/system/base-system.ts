@@ -3,6 +3,20 @@ export type GlobalEvent = "SYSTEM_INITIALIZED";
 
 export type BaseSystemComponent<T> = T | GlobalComponent;
 
+// Property types to distinguish between stateful and immutable properties
+export type StatefulProperty<T> = {
+  type: "stateful";
+  value: T;
+};
+
+export type ImmutableProperty<T> = {
+  type: "immutable";
+  value: T;
+};
+
+// Helper type to create a property
+export type Property<T> = StatefulProperty<T> | ImmutableProperty<T>;
+
 export type BaseSystemComponentDataModel<
   T extends BaseSystemComponent<string>,
   S extends Record<Exclude<T, GlobalComponent>, unknown>,
