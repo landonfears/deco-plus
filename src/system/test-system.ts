@@ -13,6 +13,7 @@ import {
   type ImmutableProperty,
   type StatefulProperty,
 } from "./base-system";
+import { formatState } from "./utils";
 
 /*
   SYSTEM COMPONENTS
@@ -227,28 +228,28 @@ export const manager: SystemManager = createSystemManager<
 
 // Example usage and tests
 async function testSystemManager() {
-  console.log("Initial state:", manager.state);
+  console.log("Initial state:", formatState(manager.state));
 
   // Test FELT_HUNGER event
   console.log("\nProcessing FELT_HUNGER event...");
   await manager.processEvent("FELT_HUNGER", {
     food: ["pizza"],
   });
-  console.log("After FELT_HUNGER:", manager.state.person.data);
+  console.log("After FELT_HUNGER:", formatState(manager.state.person.data));
 
   // Test STARTED_MOVING event
   console.log("\nProcessing STARTED_MOVING event...");
   await manager.processEvent("STARTED_MOVING", {
     movementMethod: "wheelchair",
   });
-  console.log("After STARTED_MOVING:", manager.state.person.data);
+  console.log("After STARTED_MOVING:", formatState(manager.state.person.data));
 
   // Test OPENED_FRIDGE event
   console.log("\nProcessing OPENED_FRIDGE event...");
   await manager.processEvent("OPENED_FRIDGE", {
     movementMethod: "wheelchair",
   });
-  console.log("After OPENED_FRIDGE:", manager.state.fridge.data);
+  console.log("After OPENED_FRIDGE:", formatState(manager.state.fridge.data));
 }
 
 // Run the tests

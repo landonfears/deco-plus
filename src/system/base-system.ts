@@ -176,36 +176,39 @@ export function createSystemManager<
         // Process queue
         while (this.queue.length > 0) {
           const current = this.queue.shift()!;
-          const componentKey = Object.keys(this.state)[0] as keyof BS;
-          const component = this.state[componentKey];
 
-          // Find and execute the action
-          const action = component.events[current.event];
-          if (action) {
-            try {
-              // Execute action and get updates
-              const updates = await action.action(
-                data,
-                this.state as unknown as SD,
-              );
-
-              // Apply updates atomically
-              if (updates) {
-                this.applyUpdate(updates);
-              }
-
-              // Process any new events from the action
-              if (action.send) {
-                for (const send of action.send) {
-                  this.queue.push(send);
-                }
-              }
-            } catch (error) {
-              if (error instanceof Error) {
-                console.error(
-                  `Error processing event ${current.event}:`,
-                  error.message,
+          // Check all components for the event handler
+          for (const componentKey of Object.keys(this.state) as Array<
+            keyof BS
+          >) {
+            const component = this.state[componentKey];
+            const action = component.events[current.event];
+            if (action) {
+              try {
+                // Execute action and get updates
+                const updates = await action.action(
+                  data,
+                  this.state as unknown as SD,
                 );
+
+                // Apply updates atomically
+                if (updates) {
+                  this.applyUpdate(updates);
+                }
+
+                // Process any new events from the action
+                if (action.send) {
+                  for (const send of action.send) {
+                    this.queue.push(send);
+                  }
+                }
+              } catch (error) {
+                if (error instanceof Error) {
+                  console.error(
+                    `Error processing event ${current.event}:`,
+                    error.message,
+                  );
+                }
               }
             }
           }
