@@ -5,6 +5,7 @@ type EventName = string;
 
 // Base types for component data and event data
 type ComponentData = Record<string, unknown>;
+// Event names should follow a past tense verb format to indicate "something happened"
 type EventData = Record<string, unknown>;
 
 // Event handler type that can update component data and send new events
@@ -14,8 +15,17 @@ type EventHandler = (
   component: Component,
 ) => Promise<{
   update?: Partial<ComponentData>;
-  send?: Array<{ event: EventName; data: EventData }>;
+  send?: Array<{
+    component?: ComponentName;
+    event: EventName;
+    data: EventData;
+  }>;
 }>;
+
+// Event object type that can be either the old format or new format
+type EventObject =
+  | { event: EventName; data: EventData }
+  | { component?: ComponentName; event: EventName; data: EventData };
 
 // Component class that manages instances and events
 export class Component {
@@ -32,6 +42,40 @@ export class Component {
     public readonly name: ComponentName,
     private readonly dataModel: ComponentData,
   ) {}
+
+  // Logging utility
+  private logSystemState(
+    event: EventName,
+    instanceId: InstanceId,
+    data: EventData,
+  ): void {
+    console.log("\n=== System State Log ===");
+    console.log(`Component: ${this.name}`);
+    console.log(`Event: ${event}`);
+    console.log(`Instance ID: ${instanceId}`);
+
+    // Log event data if it exists
+    if (data && Object.keys(data).length > 0) {
+      console.log("\nEvent Data:", data);
+    } else {
+      console.log("\nEvent Data: (empty)");
+    }
+
+    // Log instance data if it exists
+    const instance = this.getInstance(instanceId);
+    if (instance) {
+      console.log("\nInstance Data:", instance);
+    } else {
+      console.log("\nInstance Data: (not found)");
+    }
+
+    // Log all instances for this component
+    console.log(
+      "\nAll Instances in Component:",
+      Array.from(this.instances.entries()),
+    );
+    console.log("=====================\n");
+  }
 
   // Create a new instance with initial data
   createInstance(
@@ -59,27 +103,55 @@ export class Component {
     instanceId: InstanceId,
     event: EventName,
     data: EventData,
-  ): Promise<Array<{ event: EventName; data: EventData }>> {
-    const handler = this.eventHandlers.get(event);
-    if (!handler) {
+  ): Promise<EventObject[]> {
+    // Log the system state before processing
+    // this.logSystemState(event, instanceId, data);
+
+    const instance = this.instances.get(instanceId);
+    if (!instance) {
+      console.warn(
+        `Instance ${instanceId} not found in component ${this.name}`,
+      );
       return [];
     }
 
-    const result = await handler(instanceId, data, this);
-
-    // Update instance data if provided
-    if (result.update) {
-      const currentData = this.instances.get(instanceId);
-      if (currentData) {
-        this.instances.set(instanceId, {
-          ...currentData,
-          ...result.update,
-        });
-      }
+    const handler = this.eventHandlers.get(event);
+    if (!handler) {
+      console.warn(`No handler for event ${event} in component ${this.name}`);
+      return [];
     }
 
-    // Return any events to be sent
-    return result.send ?? [];
+    try {
+      const result = await handler(instanceId, data, this);
+      if (result.update) {
+        this.updateInstance(instanceId, result.update);
+        // Log the update
+        console.log(
+          `\nApplied update to ${this.name}.${instanceId}:`,
+          result.update,
+        );
+      }
+      return result.send ?? [];
+    } catch (error) {
+      console.error(
+        `Error processing event ${event} in component ${this.name}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  private updateInstance(
+    instanceId: InstanceId,
+    update: Partial<ComponentData>,
+  ): void {
+    const currentData = this.instances.get(instanceId);
+    if (currentData) {
+      this.instances.set(instanceId, {
+        ...currentData,
+        ...update,
+      });
+    }
   }
 }
 
@@ -137,39 +209,52 @@ export class System {
 
         // Queue any new events that were generated
         for (const newEvent of newEvents) {
-          this.queueEvent(component, instanceId, newEvent.event, newEvent.data);
+          // Handle both old format (without component) and new format (with component)
+          const targetComponent =
+            "component" in newEvent ? newEvent.component : component;
+          const targetInstanceId =
+            "instanceId" in newEvent.data
+              ? (newEvent.data.instanceId as string)
+              : instanceId;
+
+          this.queueEvent(
+            targetComponent ?? component,
+            targetInstanceId,
+            newEvent.event,
+            newEvent.data,
+          );
         }
       }
     }
   }
 }
 
-// Example usage:
-const system = new System();
+// // Example usage:
+// const system = new System();
 
-// Create a person component
-const person = system.createComponent("person", {
-  name: "",
-  age: 0,
-  isHungry: false,
-});
+// // Create a person component
+// const person = system.createComponent("person", {
+//   name: "",
+//   age: 0,
+//   isHungry: false,
+// });
 
-// Register event handlers
-person.on("FELT_HUNGER", async (instanceId, data, component) => {
-  const instance = component.getInstance(instanceId);
-  if (!instance) return {};
+// // Register event handlers
+// person.on("FELT_HUNGER", async (instanceId, data, component) => {
+//   const instance = component.getInstance(instanceId);
+//   if (!instance) return {};
 
-  return {
-    update: { isHungry: true },
-    send: [{ event: "STARTED_MOVING", data: { movementMethod: "walking" } }],
-  };
-});
+//   return {
+//     update: { isHungry: true },
+//     send: [{ event: "STARTED_MOVING", data: { movementMethod: "walking" } }],
+//   };
+// });
 
-// Create an instance
-person.createInstance("person_1", { name: "Alice", age: 30 });
+// // Create an instance
+// person.createInstance("person_1", { name: "Alice", age: 30 });
 
-// Queue an event
-system.queueEvent("person", "person_1", "FELT_HUNGER", {});
+// // Queue an event
+// system.queueEvent("person", "person_1", "FELT_HUNGER", {});
 
-// Process events
-await system.processEvents();
+// // Process events
+// await system.processEvents();
