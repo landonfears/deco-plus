@@ -39,10 +39,46 @@ export class Component {
   >();
   private name: string;
   private dataModel: ComponentData;
+  private parent?: ComponentName;
+  private children: ComponentName[] = [];
+  private system: System;
 
-  constructor(name: string, dataModel: ComponentData) {
+  constructor(name: string, dataModel: ComponentData, system: System) {
     this.name = name;
     this.dataModel = dataModel;
+    this.system = system;
+  }
+
+  // Add getter for name
+  getName(): string {
+    return this.name;
+  }
+
+  // Add methods for parent-child relationships
+  setParent(parent: ComponentName): void {
+    this.parent = parent;
+  }
+
+  addChild(child: ComponentName): void {
+    if (!this.children.includes(child)) {
+      this.children.push(child);
+    }
+  }
+
+  getParent(): Component | undefined {
+    return this.parent ? this.system.getComponent(this.parent) : undefined;
+  }
+
+  getChildren(): Component[] {
+    return this.children
+      .map((childName) => this.system.getComponent(childName))
+      .filter((child): child is Component => child !== undefined);
+  }
+
+  // Add shouldPropagateToParent method
+  protected shouldPropagateToParent(event: EventName): boolean {
+    // By default, propagate all events to parent
+    return true;
   }
 
   // Logging utility
@@ -79,15 +115,38 @@ export class Component {
     console.log("=====================\n");
   }
 
-  // Create a new instance with initial data
+  // Modify createInstance to handle child instances
   createInstance(
     instanceId: InstanceId,
     initialData: Partial<ComponentData> = {},
+    createRelated = true,
   ): void {
+    // Create current instance first
     this.instances.set(instanceId, {
       ...this.dataModel,
       ...initialData,
     });
+
+    if (createRelated) {
+      // Create parent instance if needed
+      if (this.parent) {
+        const parentComponent = this.getParent();
+        if (parentComponent) {
+          // Extract the base instance ID (remove the current component's prefix)
+          const baseInstanceId = instanceId.replace(`${this.name}_`, "");
+          // Create the parent instance ID
+          const parentInstanceId = `${this.parent}_${baseInstanceId}`;
+          parentComponent.createInstance(parentInstanceId, {}, false);
+        }
+      }
+
+      // Create instances for all descendants
+      const descendants = this.system.getDescendants(this.name);
+      descendants.forEach((descendant) => {
+        const descendantInstanceId = `${descendant.getName()}_${instanceId}`;
+        descendant.createInstance(descendantInstanceId, {}, false);
+      });
+    }
   }
 
   // Get instance data
@@ -100,7 +159,7 @@ export class Component {
     this.eventHandlers.set(event, handler);
   }
 
-  // Process an event for a specific instance
+  // Modify processEvent to handle event propagation
   async processEvent(
     instanceId: InstanceId,
     event: EventName,
@@ -119,8 +178,12 @@ export class Component {
       console.warn(`[COMPONENT ${this.name}] No handler for event ${event}`);
       return [];
     }
+
     try {
+      // Process event locally
       const result = await handler(instanceId, data, this);
+
+      // Update local instance if needed
       if (result.update) {
         this.updateInstance(instanceId, result.update);
         console.log(
@@ -128,7 +191,28 @@ export class Component {
           result.update,
         );
       }
-      return result.send ?? [];
+
+      // Prepare events to send
+      let eventsToSend = result.send ?? [];
+
+      // Propagate to parent by default unless explicitly prevented by an empty send array
+      if (this.parent && result.send === undefined) {
+        const parentComponent = this.getParent();
+        if (parentComponent) {
+          // Extract the base instance ID (remove the current component's prefix)
+          const baseInstanceId = instanceId.replace(`${this.name}_`, "");
+          // Create the parent instance ID
+          const parentInstanceId = `${this.parent}_${baseInstanceId}`;
+          const parentResult = await parentComponent.processEvent(
+            parentInstanceId,
+            event,
+            data,
+          );
+          eventsToSend = [...eventsToSend, ...parentResult];
+        }
+      }
+
+      return eventsToSend;
     } catch (error) {
       console.error(
         `[COMPONENT ${this.name}] Error processing event ${event}:`,
@@ -173,11 +257,75 @@ export class System {
     this.createComponent("system", {});
   }
 
-  // Create a new component
-  createComponent(name: ComponentName, dataModel: ComponentData): Component {
-    const component = new Component(name, dataModel);
+  // Create a new component with optional parent
+  createComponent(
+    name: ComponentName,
+    dataModel: ComponentData,
+    parent?: ComponentName,
+  ): Component {
+    const component = new Component(name, dataModel, this);
     this.components.set(name, component);
+
+    if (parent) {
+      const parentComponent = this.getComponent(parent);
+      if (parentComponent) {
+        component.setParent(parent);
+        parentComponent.addChild(name);
+      }
+    }
+
     return component;
+  }
+
+  // Create a component and its children in one call
+  createComponentWithChildren(
+    name: ComponentName,
+    dataModel: ComponentData,
+    children: Array<{
+      name: ComponentName;
+      dataModel: ComponentData;
+    }>,
+  ): Component {
+    const parent = this.createComponent(name, dataModel);
+
+    children.forEach((child) => {
+      this.createComponent(child.name, child.dataModel, name);
+    });
+
+    return parent;
+  }
+
+  // Get all descendants of a component
+  getDescendants(componentName: ComponentName): Component[] {
+    const component = this.getComponent(componentName);
+    if (!component) return [];
+
+    const descendants: Component[] = [];
+    const queue = [...component.getChildren()];
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      descendants.push(current);
+      queue.push(...current.getChildren());
+    }
+
+    return descendants;
+  }
+
+  // Get all ancestors of a component
+  getAncestors(componentName: ComponentName): Component[] {
+    const component = this.getComponent(componentName);
+    if (!component) return [];
+
+    const ancestors: Component[] = [];
+    let current = component.getParent();
+
+    while (current) {
+      ancestors.push(current);
+      current = current.getParent();
+    }
+
+    return ancestors;
   }
 
   // Get a component
@@ -266,6 +414,10 @@ export class System {
         throw error;
       }
     }
+  }
+
+  getComponents(): Component[] {
+    return Array.from(this.components.values());
   }
 }
 
