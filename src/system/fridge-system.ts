@@ -74,7 +74,6 @@ export const fridge = system.createComponent("fridge", {
 
 // Event handlers
 person.on("FELT_HUNGER", async (instanceId, data, component) => {
-  console.log("hi1");
   const instance = component.getInstance(instanceId) as PersonData | undefined;
   if (!instance) return {};
 

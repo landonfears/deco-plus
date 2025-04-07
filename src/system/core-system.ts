@@ -37,11 +37,13 @@ export class Component {
     EventName,
     EventHandler
   >();
+  private name: string;
+  private dataModel: ComponentData;
 
-  constructor(
-    public readonly name: ComponentName,
-    private readonly dataModel: ComponentData,
-  ) {}
+  constructor(name: string, dataModel: ComponentData) {
+    this.name = name;
+    this.dataModel = dataModel;
+  }
 
   // Logging utility
   private logSystemState(
@@ -104,54 +106,52 @@ export class Component {
     event: EventName,
     data: EventData,
   ): Promise<EventObject[]> {
-    // Log the system state before processing
-    // this.logSystemState(event, instanceId, data);
+    this.logSystemState(event, instanceId, data);
 
     const instance = this.instances.get(instanceId);
     if (!instance) {
-      console.warn(
-        `Instance ${instanceId} not found in component ${this.name}`,
-      );
+      console.warn(`[COMPONENT ${this.name}] Instance ${instanceId} not found`);
       return [];
     }
 
     const handler = this.eventHandlers.get(event);
     if (!handler) {
-      console.warn(`No handler for event ${event} in component ${this.name}`);
+      console.warn(`[COMPONENT ${this.name}] No handler for event ${event}`);
       return [];
     }
-
     try {
       const result = await handler(instanceId, data, this);
       if (result.update) {
         this.updateInstance(instanceId, result.update);
-        // Log the update
         console.log(
-          `\nApplied update to ${this.name}.${instanceId}:`,
+          `[COMPONENT ${this.name}] Applied update to ${instanceId}:`,
           result.update,
         );
       }
       return result.send ?? [];
     } catch (error) {
       console.error(
-        `Error processing event ${event} in component ${this.name}:`,
+        `[COMPONENT ${this.name}] Error processing event ${event}:`,
         error,
       );
       throw error;
     }
   }
 
-  private updateInstance(
-    instanceId: InstanceId,
-    update: Partial<ComponentData>,
-  ): void {
-    const currentData = this.instances.get(instanceId);
-    if (currentData) {
-      this.instances.set(instanceId, {
-        ...currentData,
-        ...update,
-      });
+  updateInstance(instanceId: InstanceId, update: Partial<ComponentData>): void {
+    const instance = this.instances.get(instanceId);
+    if (!instance) {
+      throw new Error(`Instance ${instanceId} not found`);
     }
+    Object.assign(instance, update);
+  }
+
+  clearInstances(): void {
+    this.instances.clear();
+  }
+
+  getEventHandler(eventName: EventName): EventHandler | undefined {
+    return this.eventHandlers.get(eventName);
   }
 }
 
@@ -192,6 +192,7 @@ export class System {
     event: EventName,
     data: EventData,
   ): void {
+    console.log("queueEvent", component, instanceId, event, data);
     this.eventQueue.push({ component, instanceId, event, data });
   }
 
@@ -202,28 +203,67 @@ export class System {
       if (!event) continue;
 
       const { component, instanceId, event: eventName, data } = event;
+      console.log(`[CORE] Processing event:`, {
+        component,
+        instanceId,
+        event: eventName,
+        data,
+      });
+
       const comp = this.getComponent(component);
+      if (!comp) {
+        console.warn(`[CORE] Component ${component} not found`);
+        continue;
+      }
 
-      if (comp) {
-        const newEvents = await comp.processEvent(instanceId, eventName, data);
+      const handler = comp.getEventHandler(eventName);
+      if (!handler) {
+        console.warn(
+          `[CORE] No handler for event ${eventName} in component ${component}`,
+        );
+        continue;
+      }
 
-        // Queue any new events that were generated
-        for (const newEvent of newEvents) {
-          // Handle both old format (without component) and new format (with component)
-          const targetComponent =
-            "component" in newEvent ? newEvent.component : component;
-          const targetInstanceId =
-            "instanceId" in newEvent.data
-              ? (newEvent.data.instanceId as string)
-              : instanceId;
-
-          this.queueEvent(
-            targetComponent ?? component,
-            targetInstanceId,
-            newEvent.event,
-            newEvent.data,
+      try {
+        const result = await handler(instanceId, data, comp);
+        if (result.update) {
+          const instance = comp.getInstance(instanceId);
+          if (!instance) {
+            console.warn(
+              `[CORE] Instance ${instanceId} not found in component ${component}`,
+            );
+            continue;
+          }
+          comp.updateInstance(instanceId, result.update);
+          console.log(
+            `[CORE] Applied update to ${component}.${instanceId}:`,
+            result.update,
           );
         }
+        if (result.send) {
+          for (const newEvent of result.send) {
+            const targetComponent = newEvent.component ?? component;
+            const targetInstanceId =
+              "instanceId" in newEvent.data
+                ? (newEvent.data.instanceId as string)
+                : instanceId;
+            console.log(`[CORE] Queueing new event:`, {
+              component: targetComponent,
+              instanceId: targetInstanceId,
+              event: newEvent.event,
+              data: newEvent.data,
+            });
+            this.queueEvent(
+              targetComponent,
+              targetInstanceId,
+              newEvent.event,
+              newEvent.data,
+            );
+          }
+        }
+      } catch (error) {
+        console.error(`[CORE] Error processing event:`, error);
+        throw error;
       }
     }
   }
