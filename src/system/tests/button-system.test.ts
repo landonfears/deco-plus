@@ -5,7 +5,7 @@ import {
   internalDev,
   endUser,
   externalDev,
-} from "./button-system";
+} from "../button-system";
 import type {
   ButtonSize,
   ButtonColor,
@@ -15,7 +15,7 @@ import type {
   ClickButtonEventData,
   CustomizeButtonEventData,
   ExternalDeployEventData,
-} from "./button-system";
+} from "../button-system";
 
 describe("Button System", () => {
   beforeEach(() => {

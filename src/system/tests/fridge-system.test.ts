@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { system, person, fridge } from "./fridge-system";
+import { system, person, fridge } from "../fridge-system";
 
 describe("Fridge System", () => {
   test("should handle the complete hunger to food found event chain", async () => {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, test, expect } from "vitest";
-import { System, type Component } from "./core-system";
+import { System, type Component } from "../core-system";
 
 // Type definitions for test data
 interface PersonData {
