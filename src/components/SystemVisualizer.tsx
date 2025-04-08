@@ -277,9 +277,9 @@ const determineHandlePositions = (
   if (hasVerticalOverlap) {
     // Nodes are at similar vertical positions
     if (targetCenter.x > sourceCenter.x) {
-      return { sourceHandle: "left", targetHandle: "right" };
-    } else {
       return { sourceHandle: "right", targetHandle: "left" };
+    } else {
+      return { sourceHandle: "left", targetHandle: "right" };
     }
   }
 
@@ -291,11 +291,11 @@ const determineHandlePositions = (
       return { sourceHandle: "bottom", targetHandle: "top" };
     }
   }
-
+  console.log("deg start", degrees);
   // For diagonal relationships, use the angle to determine the best handles
   if (degrees >= -45 && degrees < 45) {
     // Target is to the right
-    return { sourceHandle: "left", targetHandle: "right" };
+    return { sourceHandle: "right", targetHandle: "left" };
   } else if (degrees >= 45 && degrees < 135) {
     // Target is below
     return { sourceHandle: "top", targetHandle: "bottom" };
@@ -480,7 +480,34 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
           componentName,
           systemData,
         );
-        const position = calculatePositionForRoot(componentName, 0, systemData);
+
+        // Find the component and its parent
+        const component = systemData.components.find(
+          (c) => c.name === componentName,
+        );
+        let position;
+
+        if (component?.parent) {
+          // For child nodes, get parent's bounds and add child's relative position
+          const parentBounds = getNodeBounds(component.parent);
+          const { childPositions } = calculateContainerDimensions(
+            component.parent,
+            systemData,
+          );
+          const relativePos = childPositions.get(componentName) || {
+            x: 0,
+            y: TOP_MARGIN,
+          };
+
+          position = {
+            x: parentBounds.x + relativePos.x,
+            y: parentBounds.y + relativePos.y,
+          };
+        } else {
+          // For root nodes, use the normal position calculation
+          position = calculatePositionForRoot(componentName, 0, systemData);
+        }
+
         nodeDimensions.set(componentName, {
           x: position.x,
           y: position.y,

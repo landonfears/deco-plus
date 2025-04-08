@@ -6,10 +6,10 @@ export const createVisualizerSystem = () => {
 
   // Create components
   const parent = system.createComponent("parent", {});
-  // parent.on("STARTED_SYSTEM", async (instanceId) => {
-  //   console.log("Parent received STARTED_SYSTEM event");
-  //   return { update: {} };
-  // });
+  parent.on("STARTED_SYSTEM", async (instanceId) => {
+    console.log("Parent received STARTED_SYSTEM event");
+    return { update: {} };
+  });
 
   const child1 = system.createComponent("child1", {});
   const child2 = system.createComponent("child2", {});
