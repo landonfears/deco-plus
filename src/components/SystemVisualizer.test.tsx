@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { SystemVisualizer } from "./SystemVisualizer";
-import { getVisualizerSystemData } from "../system/visualizer-system";
-
+import { getVisualizerSystemData } from "../system/visualizer";
+import { system } from "../system/visualizer-system";
 // Mock ResizeObserver
 const mockResizeObserver = vi.fn(() => ({
   observe: vi.fn(),
@@ -14,13 +14,13 @@ window.ResizeObserver = mockResizeObserver;
 
 describe("SystemVisualizer", () => {
   it("renders the visualizer container", () => {
-    const systemData = getVisualizerSystemData();
+    const systemData = getVisualizerSystemData(system);
     render(<SystemVisualizer systemData={systemData} />);
     expect(screen.getByTestId("system-visualizer")).toBeInTheDocument();
   });
 
   it("renders all component nodes with proper nesting", async () => {
-    const systemData = getVisualizerSystemData();
+    const systemData = getVisualizerSystemData(system);
     render(<SystemVisualizer systemData={systemData} />);
 
     // Check for all component nodes

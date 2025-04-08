@@ -291,7 +291,7 @@ const determineHandlePositions = (
       return { sourceHandle: "bottom", targetHandle: "top" };
     }
   }
-  console.log("deg start", degrees);
+
   // For diagonal relationships, use the angle to determine the best handles
   if (degrees >= -45 && degrees < 45) {
     // Target is to the right

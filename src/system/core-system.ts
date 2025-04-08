@@ -237,6 +237,11 @@ export class Component {
   getEventHandler(eventName: EventName): EventHandler | undefined {
     return this.eventHandlers.get(eventName);
   }
+
+  // Add method to get all registered event names
+  getRegisteredEventNames(): EventName[] {
+    return Array.from(this.eventHandlers.keys());
+  }
 }
 
 // System class that manages components and event processing
@@ -420,6 +425,20 @@ export class System {
     return Array.from(this.components.values());
   }
 }
+
+export const getSystemEvents = (system: System): EventName[] => {
+  const events = new Set<EventName>();
+  const components = system.getComponents();
+
+  // Collect all registered event names from each component
+  components.forEach((component) => {
+    component.getRegisteredEventNames().forEach((eventName) => {
+      events.add(eventName);
+    });
+  });
+
+  return Array.from(events);
+};
 
 // // Example usage:
 // const system = new System();
