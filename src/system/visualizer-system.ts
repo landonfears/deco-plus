@@ -6,14 +6,30 @@ export const createVisualizerSystem = () => {
 
   // Create components
   const parent = system.createComponent("parent", {});
-  parent.on("STARTED_SYSTEM", async (instanceId) => {
-    console.log("Parent received STARTED_SYSTEM event");
-    return { update: {} };
-  });
+  // parent.on("STARTED_SYSTEM", async (instanceId) => {
+  //   console.log("Parent received STARTED_SYSTEM event");
+  //   return { update: {} };
+  // });
 
   const child1 = system.createComponent("child1", {});
   const child2 = system.createComponent("child2", {});
+  child2.on("HAD_HICCUPS", async (instanceId) => {
+    console.log("Child2 received HAD_HICCUPS event");
+    return { update: {} };
+  });
   const grandchild = system.createComponent("grandchild", {});
+  grandchild.on("STARTED_SYSTEM", async (instanceId) => {
+    console.log("Grandchild received STARTED_SYSTEM event");
+    return {
+      send: [
+        {
+          component: "child2",
+          event: "HAD_HICCUPS",
+          data: {},
+        },
+      ],
+    };
+  });
 
   // Set up parent-child relationships
   child1.setParent("parent");
@@ -29,6 +45,11 @@ export const createVisualizerSystem = () => {
         send: [
           {
             component: "parent",
+            event: "STARTED_SYSTEM",
+            data: {},
+          },
+          {
+            component: "grandchild",
             event: "STARTED_SYSTEM",
             data: {},
           },
@@ -56,27 +77,47 @@ export const getVisualizerSystemData = () => {
     name: string;
   }> = [];
 
-  // For INITIALIZED_SYSTEM -> STARTED_SYSTEM flow, we need:
-  // 1. System component must have INITIALIZED_SYSTEM handler that sends STARTED_SYSTEM
-  // 2. Parent component must have STARTED_SYSTEM handler to receive it
-  const systemComponent = system.getComponent("system");
-  const parentComponent = system.getComponent("parent");
+  // Get all components
+  const components = Array.from(system.getComponents());
 
-  const systemHandler = systemComponent?.getEventHandler("INITIALIZED_SYSTEM");
-  const parentHandler = parentComponent?.getEventHandler("STARTED_SYSTEM");
+  // For each component, check its event handlers and their send actions
+  components.forEach((sourceComponent) => {
+    // Try common events that we know exist in the system
+    const commonEvents = [
+      "INITIALIZED_SYSTEM",
+      "STARTED_SYSTEM",
+      "HAD_HICCUPS",
+    ];
 
-  // Only add the event edge if both sides of the relationship exist
-  if (systemHandler && parentHandler) {
-    events.push({
-      from: "system",
-      to: "parent",
-      type: "event",
-      name: "STARTED_SYSTEM",
+    commonEvents.forEach((eventName) => {
+      const handler = sourceComponent.getEventHandler(eventName);
+      if (!handler) return;
+
+      // Call the handler to see what events it sends
+      handler("test_instance_id", {}, sourceComponent)
+        .then((result) => {
+          if (result?.send) {
+            // For each event being sent, check if the target component has a handler for it
+            result.send.forEach((sendAction) => {
+              if (!sendAction.component) return;
+              const targetComponent = system.getComponent(sendAction.component);
+              if (targetComponent?.getEventHandler(sendAction.event)) {
+                events.push({
+                  from: sourceComponent.getName(),
+                  to: sendAction.component,
+                  type: "event",
+                  name: sendAction.event,
+                });
+              }
+            });
+          }
+        })
+        .catch(console.error);
     });
-  }
+  });
 
   return {
-    components: Array.from(system.getComponents()).map((component) => ({
+    components: components.map((component) => ({
       name: component.getName(),
       parent: component.getParent()?.getName() ?? undefined,
       children: component.getChildren().map((child) => child.getName()),

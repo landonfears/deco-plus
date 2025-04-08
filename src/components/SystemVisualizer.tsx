@@ -121,6 +121,22 @@ const CustomEdge = ({
   markerEnd,
   data,
 }: EdgeProps) => {
+  // Add padding based on the target position
+  const getOffset = (position: Position) => {
+    switch (position) {
+      case Position.Left:
+      case Position.Right:
+        return 32; // More horizontal space for side arrows
+      case Position.Top:
+      case Position.Bottom:
+        return 32; // More vertical space for top/bottom arrows
+      default:
+        return 32;
+    }
+  };
+
+  const offset = getOffset(targetPosition);
+
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -128,8 +144,8 @@ const CustomEdge = ({
     targetY,
     sourcePosition,
     targetPosition,
-    borderRadius: 4,
-    offset: 12,
+    borderRadius: 8,
+    offset,
   });
 
   return (
@@ -445,11 +461,11 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          width: 20,
-          height: 20,
+          width: 24,
+          height: 24,
           color: "#be185d",
         },
-        zIndex: 1,
+        zIndex: 1000,
       });
 
       processedEventPairs.add(eventPairKey);
@@ -513,6 +529,7 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
           height,
           padding: 0,
           borderRadius: 8,
+          zIndex: 0,
         },
       });
 
@@ -588,7 +605,7 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
         panOnDrag={true}
         minZoom={0.1}
         maxZoom={2}
-        className="bg-gray-50"
+        className="bg-gray-50 [&_.react-flow__edge]:!z-[1000]"
       >
         <Background color="#aaaaaa" gap={20} />
         <Controls showInteractive={true} />
