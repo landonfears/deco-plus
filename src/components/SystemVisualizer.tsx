@@ -164,7 +164,7 @@ const CustomEdge = ({
           style={{
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
           }}
-          className="nodrag nopan absolute z-10 rounded-md bg-pink-50 p-2 text-xs font-bold text-pink-700"
+          className="nodrag nopan absolute z-[1000] rounded-md bg-pink-50 p-2 text-xs font-bold text-pink-700"
         >
           {data?.label}
         </div>
@@ -216,27 +216,95 @@ interface HandleConnections {
   targetHandles: string[];
 }
 
-// Add function to determine handle positions based on relative node positions
+// Add types for node bounds
+interface NodeBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// Add function to determine handle positions based on relative node positions and dimensions
 const determineHandlePositions = (
   source: { x: number; y: number },
   target: { x: number; y: number },
+  sourceBounds: NodeBounds,
+  targetBounds: NodeBounds,
 ): { sourceHandle: string; targetHandle: string } => {
-  const dx = target.x - source.x;
-  const dy = target.y - source.y;
+  // Calculate center points
+  const sourceCenter = {
+    x: source.x + sourceBounds.width / 2,
+    y: source.y + sourceBounds.height / 2,
+  };
+  const targetCenter = {
+    x: target.x + targetBounds.width / 2,
+    y: target.y + targetBounds.height / 2,
+  };
 
-  // Determine which handles to use based on relative positions
-  if (Math.abs(dx) > Math.abs(dy)) {
-    // Horizontal connection
-    return {
-      sourceHandle: dx > 0 ? "right" : "left",
-      targetHandle: dx > 0 ? "left" : "right",
-    };
+  // Calculate the angle between centers
+  const angle = Math.atan2(
+    targetCenter.y - sourceCenter.y,
+    targetCenter.x - sourceCenter.x,
+  );
+  const degrees = angle * (180 / Math.PI);
+
+  // Check if nodes overlap vertically or horizontally
+  const sourceVerticalRange = {
+    min: source.y,
+    max: source.y + sourceBounds.height,
+  };
+  const targetVerticalRange = {
+    min: target.y,
+    max: target.y + targetBounds.height,
+  };
+  const sourceHorizontalRange = {
+    min: source.x,
+    max: source.x + sourceBounds.width,
+  };
+  const targetHorizontalRange = {
+    min: target.x,
+    max: target.x + targetBounds.width,
+  };
+
+  const hasVerticalOverlap =
+    sourceVerticalRange.min <= targetVerticalRange.max &&
+    sourceVerticalRange.max >= targetVerticalRange.min;
+  const hasHorizontalOverlap =
+    sourceHorizontalRange.min <= targetHorizontalRange.max &&
+    sourceHorizontalRange.max >= targetHorizontalRange.min;
+
+  // Determine optimal handles based on angle and overlap
+  if (hasVerticalOverlap) {
+    // Nodes are at similar vertical positions
+    if (targetCenter.x > sourceCenter.x) {
+      return { sourceHandle: "left", targetHandle: "right" };
+    } else {
+      return { sourceHandle: "right", targetHandle: "left" };
+    }
+  }
+
+  if (hasHorizontalOverlap) {
+    // Nodes are at similar horizontal positions
+    if (targetCenter.y > sourceCenter.y) {
+      return { sourceHandle: "top", targetHandle: "bottom" };
+    } else {
+      return { sourceHandle: "bottom", targetHandle: "top" };
+    }
+  }
+
+  // For diagonal relationships, use the angle to determine the best handles
+  if (degrees >= -45 && degrees < 45) {
+    // Target is to the right
+    return { sourceHandle: "left", targetHandle: "right" };
+  } else if (degrees >= 45 && degrees < 135) {
+    // Target is below
+    return { sourceHandle: "top", targetHandle: "bottom" };
+  } else if (degrees >= 135 || degrees < -135) {
+    // Target is to the left
+    return { sourceHandle: "right", targetHandle: "left" };
   } else {
-    // Vertical connection
-    return {
-      sourceHandle: dy > 0 ? "bottom" : "top",
-      targetHandle: dy > 0 ? "top" : "bottom",
-    };
+    // Target is above
+    return { sourceHandle: "bottom", targetHandle: "top" };
   }
 };
 
@@ -395,6 +463,7 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
     const newEdges: Edge[] = [];
     const visited = new Set<string>();
     const handleConnections = new Map<string, HandleConnections>();
+    const nodeDimensions = new Map<string, NodeBounds>();
 
     // Initialize handle connections for all nodes
     systemData.components.forEach((component) => {
@@ -404,6 +473,24 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
       });
     });
 
+    // Function to get or calculate node bounds
+    const getNodeBounds = (componentName: string): NodeBounds => {
+      if (!nodeDimensions.has(componentName)) {
+        const { width, height } = calculateContainerDimensions(
+          componentName,
+          systemData,
+        );
+        const position = calculatePositionForRoot(componentName, 0, systemData);
+        nodeDimensions.set(componentName, {
+          x: position.x,
+          y: position.y,
+          width,
+          height,
+        });
+      }
+      return nodeDimensions.get(componentName)!;
+    };
+
     // Create edges for events before building nodes
     const processedEventPairs = new Set<string>();
 
@@ -411,10 +498,9 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
       const eventPairKey = `${event.from}-${event.to}`;
       if (processedEventPairs.has(eventPairKey)) return;
 
-      // Skip if it's a self-connection, ancestor/descendant relationship, or creates a circular event path
+      // Skip if it's a self-connection or creates a circular event path
       if (
         event.from === event.to ||
-        hasAncestorDescendantRelationship(event.from, event.to, systemData) ||
         hasCircularEventRelationship(
           event.from,
           event.to,
@@ -424,15 +510,23 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
         return;
       }
 
+      // Get node bounds
+      const sourceBounds = getNodeBounds(event.from);
+      const targetBounds = getNodeBounds(event.to);
+
       // Calculate positions based on the nodes' expected positions
-      const fromPos = calculatePositionForRoot(event.from, 0, systemData);
-      const toPos = calculatePositionForRoot(event.to, 0, systemData);
+      const fromPos = { x: sourceBounds.x, y: sourceBounds.y };
+      const toPos = { x: targetBounds.x, y: targetBounds.y };
+
+      // Determine optimal handles
       const { sourceHandle, targetHandle } = determineHandlePositions(
         fromPos,
         toPos,
+        sourceBounds,
+        targetBounds,
       );
 
-      // Update handle connections for the event
+      // Update handle connections
       const sourceConn = handleConnections.get(event.from);
       const targetConn = handleConnections.get(event.to);
 
