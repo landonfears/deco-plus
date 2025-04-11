@@ -48,6 +48,7 @@ import {
   // hasCircularEventRelationship,
 } from "~/lib/visualizer-utils";
 import { usePrevious } from "~/hooks/use-previous";
+import { cn } from "~/lib/utils";
 
 type EdgeData = {
   label?: string;
@@ -62,7 +63,7 @@ const showOrHideStyle = (show: boolean) => {
 };
 const ComponentNode = ({
   data,
-  // selected,
+  selected,
 }: {
   data: {
     label: string;
@@ -100,9 +101,11 @@ const ComponentNode = ({
       />
 
       <div
-        className={`relative flex h-full w-full flex-col ${
-          data.hasChildren ? "" : "items-center justify-center"
-        }`}
+        className={cn(
+          `relative flex h-full w-full flex-col ${
+            data.hasChildren ? "" : "items-center justify-center"
+          }`,
+        )}
         data-testid={`node-${data.label}`}
       >
         <div className="text-lg font-bold text-neutral-600">{data.label}</div>
