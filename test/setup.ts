@@ -1,12 +1,18 @@
 import "@testing-library/jest-dom";
-import { expect, afterEach, vi } from "vitest";
+import { afterEach } from "vitest";
 import { cleanup } from "@testing-library/react";
 
 // Mock ResizeObserver
 class ResizeObserverMock {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+  observe() {
+    //
+  }
+  unobserve() {
+    //
+  }
+  disconnect() {
+    //
+  }
 }
 
 // Add ResizeObserver to the global object

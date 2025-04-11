@@ -3,14 +3,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { SystemVisualizer } from "../SystemVisualizer";
 import { getVisualizerSystemData } from "~/system/visualizer";
 import { system } from "~/system/visualizer-system";
-// Mock ResizeObserver
-const mockResizeObserver = vi.fn(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
-
-window.ResizeObserver = mockResizeObserver;
 
 describe("SystemVisualizer", () => {
   it("renders the visualizer container", () => {
@@ -55,7 +47,7 @@ describe("SystemVisualizer", () => {
   });
 });
 
-describe("SystemVisualizer", () => {
+describe("SystemVisualizer Filtering", () => {
   const systemData = getVisualizerSystemData(system);
 
   it("renders all components when no filter is applied", async () => {
