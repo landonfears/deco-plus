@@ -29,14 +29,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import {
-  NODE_MIN_WIDTH,
-  NODE_MIN_HEIGHT,
-  NODES_PER_ROW,
-  NODE_PARENT_PADDING,
   TOP_MARGIN,
-  NODE_MARGIN,
-  ROW_MARGIN,
-  LEVEL_HEIGHT,
   // type ComponentCounts,
   type EventRelationship,
   type NodeBounds,
@@ -49,6 +42,7 @@ import {
   // hasAncestorDescendantRelationship,
   calculateContainerDimensions,
   calculatePositionForRoot,
+  calculateFilteredPosition,
   // hasCircularEventRelationship,
 } from "~/lib/visualizer-utils";
 
@@ -335,7 +329,7 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({
           };
         } else {
           // For root nodes, use the normal position calculation
-          position = calculatePositionForRoot(componentName, 0, systemData);
+          position = calculatePositionForRoot(componentName, systemData);
         }
 
         nodeDimensions.set(componentName, {
@@ -457,10 +451,10 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({
 
       const position = parentId
         ? (parentChildPositions?.get(componentName) ?? { x: 0, y: TOP_MARGIN })
-        : calculatePositionForRoot(
+        : calculateFilteredPosition(
             componentName,
-            horizontalPosition,
             systemData,
+            filteredComponent,
           );
 
       // Check if any components have this node as their parent

@@ -333,7 +333,6 @@ export const calculateContainerDimensions = (
 // Add this helper function to calculate cumulative width
 export const calculatePositionForRoot = (
   componentName: string,
-  horizontalPosition: number,
   systemData: SystemVisualizerProps["systemData"],
 ): { x: number; y: number } => {
   // Find all root nodes (nodes without parents)
@@ -395,3 +394,46 @@ export function hasCircularEventRelationship(
 
   return hasCycle(from);
 }
+
+export const calculateFilteredPosition = (
+  componentName: string,
+  systemData: SystemVisualizerProps["systemData"],
+  filteredComponent: string | null,
+): { x: number; y: number } => {
+  if (!filteredComponent) {
+    return calculatePositionForRoot(componentName, systemData);
+  }
+
+  // If this is the filtered component, center it
+  if (componentName === filteredComponent) {
+    return {
+      x: 0,
+      y: 0, // TOP_MARGIN
+    };
+  }
+
+  // Find the component and its parent
+  const component = systemData.components.find((c) => c.name === componentName);
+  if (!component) return { x: 0, y: TOP_MARGIN };
+
+  // If this is a child of the filtered component, position it relative to the filtered component
+  if (component.parent === filteredComponent) {
+    const siblings = systemData.components.filter(
+      (c) => c.parent === filteredComponent,
+    );
+    const index = siblings.findIndex((c) => c.name === componentName);
+    const totalSiblings = siblings.length;
+
+    // Calculate position in a grid layout
+    const row = Math.floor(index / NODES_PER_ROW);
+    const col = index % NODES_PER_ROW;
+
+    return {
+      x: col * (NODE_MIN_WIDTH + NODE_MARGIN),
+      y: TOP_MARGIN + row * (NODE_MIN_HEIGHT + ROW_MARGIN),
+    };
+  }
+
+  // For other components, use the default position
+  return calculatePositionForRoot(componentName, systemData);
+};
