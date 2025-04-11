@@ -28,6 +28,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
+import {
+  NODE_MIN_WIDTH,
+  NODE_MIN_HEIGHT,
+  NODES_PER_ROW,
+  NODE_PARENT_PADDING,
+  TOP_MARGIN,
+  NODE_MARGIN,
+  ROW_MARGIN,
+  LEVEL_HEIGHT,
+  // type ComponentCounts,
+  type EventRelationship,
+  type NodeBounds,
+  type HandleConnections,
+  type SystemVisualizerProps,
+  // getNodePosition,
+  determineHandlePositions,
+  // getEventRelationships,
+  // getVisibleComponents,
+  // hasAncestorDescendantRelationship,
+  calculateContainerDimensions,
+  calculatePositionForRoot,
+  // hasCircularEventRelationship,
+} from "~/lib/visualizer-utils";
 
 type EdgeData = {
   label?: string;
@@ -52,9 +75,6 @@ const ComponentNode = ({
   };
   selected?: boolean;
 }) => {
-  {
-    /* <NodeResizer isVisible={selected} handleStyle={{ width: 8, height: 8 }} /> */
-  }
   return (
     <>
       <Handle
@@ -192,260 +212,6 @@ const nodeTypes: NodeTypes = {
 
 const edgeTypes: EdgeTypes = {
   custom: CustomEdge,
-};
-
-// Add type for event relationships
-interface EventRelationship {
-  from: string;
-  to: string;
-  type: "event";
-  name: string;
-}
-
-interface SystemVisualizerProps {
-  systemData: {
-    components: Array<{
-      name: string;
-      parent: string | undefined;
-      children: string[];
-    }>;
-    events?: EventRelationship[];
-  };
-  filterComponent?: string | null;
-}
-
-// Layout configuration
-const NODE_MIN_WIDTH = 200;
-const NODE_MIN_HEIGHT = 100;
-const NODES_PER_ROW = 3;
-const NODE_PARENT_PADDING = 30;
-const TOP_MARGIN = 60; // Space for parent node's label
-const NODE_MARGIN = NODE_PARENT_PADDING * 2; // Space between nodes
-const ROW_MARGIN = 30; // Space between rows
-const LEVEL_HEIGHT = 200;
-
-// Add types for handle data
-interface HandleConnections {
-  sourceHandles: string[];
-  targetHandles: string[];
-}
-
-// Add types for node bounds
-interface NodeBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-// Add function to determine handle positions based on relative node positions and dimensions
-const determineHandlePositions = (
-  source: { x: number; y: number },
-  target: { x: number; y: number },
-  sourceBounds: NodeBounds,
-  targetBounds: NodeBounds,
-): { sourceHandle: string; targetHandle: string } => {
-  // Calculate center points
-  const sourceCenter = {
-    x: source.x + sourceBounds.width / 2,
-    y: source.y + sourceBounds.height / 2,
-  };
-  const targetCenter = {
-    x: target.x + targetBounds.width / 2,
-    y: target.y + targetBounds.height / 2,
-  };
-
-  // Calculate the angle between centers
-  const angle = Math.atan2(
-    targetCenter.y - sourceCenter.y,
-    targetCenter.x - sourceCenter.x,
-  );
-  const degrees = angle * (180 / Math.PI);
-
-  // Check if nodes overlap vertically or horizontally
-  const sourceVerticalRange = {
-    min: source.y,
-    max: source.y + sourceBounds.height,
-  };
-  const targetVerticalRange = {
-    min: target.y,
-    max: target.y + targetBounds.height,
-  };
-  const sourceHorizontalRange = {
-    min: source.x,
-    max: source.x + sourceBounds.width,
-  };
-  const targetHorizontalRange = {
-    min: target.x,
-    max: target.x + targetBounds.width,
-  };
-
-  const hasVerticalOverlap =
-    sourceVerticalRange.min <= targetVerticalRange.max &&
-    sourceVerticalRange.max >= targetVerticalRange.min;
-  const hasHorizontalOverlap =
-    sourceHorizontalRange.min <= targetHorizontalRange.max &&
-    sourceHorizontalRange.max >= targetHorizontalRange.min;
-
-  // Determine optimal handles based on angle and overlap
-  if (hasVerticalOverlap) {
-    // Nodes are at similar vertical positions
-    if (targetCenter.x > sourceCenter.x) {
-      return { sourceHandle: "right", targetHandle: "left" };
-    } else {
-      return { sourceHandle: "left", targetHandle: "right" };
-    }
-  }
-
-  if (hasHorizontalOverlap) {
-    // Nodes are at similar horizontal positions
-    if (targetCenter.y > sourceCenter.y) {
-      return { sourceHandle: "top", targetHandle: "bottom" };
-    } else {
-      return { sourceHandle: "bottom", targetHandle: "top" };
-    }
-  }
-
-  // For diagonal relationships, use the angle to determine the best handles
-  if (degrees >= -45 && degrees < 45) {
-    // Target is to the right
-    return { sourceHandle: "right", targetHandle: "left" };
-  } else if (degrees >= 45 && degrees < 135) {
-    // Target is below
-    return { sourceHandle: "top", targetHandle: "bottom" };
-  } else if (degrees >= 135 || degrees < -135) {
-    // Target is to the left
-    return { sourceHandle: "right", targetHandle: "left" };
-  } else {
-    // Target is above
-    return { sourceHandle: "bottom", targetHandle: "top" };
-  }
-};
-
-const calculateContainerDimensions = (
-  componentName: string,
-  systemData: SystemVisualizerProps["systemData"],
-): {
-  width: number;
-  height: number;
-  childPositions: Map<string, { x: number; y: number }>;
-} => {
-  // Find all immediate children
-  const children = systemData.components.filter(
-    (c) => c.parent === componentName,
-  );
-  if (!children.length) {
-    return {
-      width: NODE_MIN_WIDTH,
-      height: NODE_MIN_HEIGHT,
-      childPositions: new Map(),
-    };
-  }
-
-  // Calculate child positions and collect their dimensions
-  const childPositions = new Map<string, { x: number; y: number }>();
-  let maxChildHeight = NODE_MIN_HEIGHT;
-
-  children.forEach((child, index) => {
-    // Get child's dimensions recursively
-    const childDims = calculateContainerDimensions(child.name, systemData);
-    maxChildHeight = Math.max(maxChildHeight, childDims.height);
-
-    // Calculate row and column position
-    const row = Math.floor(index / NODES_PER_ROW);
-    const col = index % NODES_PER_ROW;
-
-    // Calculate incremental padding
-    const horizontalPadding = (col + 1) * NODE_PARENT_PADDING;
-    const verticalPadding = (row + 1) * NODE_PARENT_PADDING;
-
-    // Store position for this child
-    childPositions.set(child.name, {
-      x: horizontalPadding + col * (NODE_MIN_WIDTH + NODE_MARGIN),
-      y: TOP_MARGIN + verticalPadding + row * (maxChildHeight + ROW_MARGIN),
-    });
-  });
-
-  // Calculate container width and height to accommodate the incremental padding
-  const numRows = Math.ceil(children.length / NODES_PER_ROW);
-  const nodesInLastRow = children.length % NODES_PER_ROW || NODES_PER_ROW;
-  const maxColsInAnyRow = Math.min(children.length, NODES_PER_ROW);
-
-  const width = Math.max(
-    NODE_MIN_WIDTH,
-    maxColsInAnyRow * (NODE_MIN_WIDTH + NODE_MARGIN) +
-      (maxColsInAnyRow + 1) * NODE_PARENT_PADDING -
-      NODE_MARGIN,
-  );
-
-  const height =
-    TOP_MARGIN +
-    numRows * maxChildHeight +
-    (numRows - 1) * ROW_MARGIN +
-    (numRows + 1) * NODE_PARENT_PADDING;
-
-  return { width, height, childPositions };
-};
-
-// Add this helper function to calculate cumulative width
-const calculatePositionForRoot = (
-  componentName: string,
-  horizontalPosition: number,
-  systemData: SystemVisualizerProps["systemData"],
-): { x: number; y: number } => {
-  // Find all root nodes (nodes without parents)
-  const rootNodes = systemData.components.filter((c) => !c.parent);
-  const currentRootIndex = rootNodes.findIndex((c) => c.name === componentName);
-
-  if (currentRootIndex === -1) return { x: 0, y: 0 };
-
-  // Calculate which row this node should be in
-  const row = Math.floor(currentRootIndex / NODES_PER_ROW);
-  const col = currentRootIndex % NODES_PER_ROW;
-
-  // If this is the first node in a row, x should be 0
-  if (col === 0) {
-    return {
-      x: 0,
-      y: row * LEVEL_HEIGHT,
-    };
-  }
-
-  // Calculate cumulative width of previous nodes in the same row
-  let x = 0;
-  for (let i = row * NODES_PER_ROW; i < currentRootIndex; i++) {
-    const prevNode = rootNodes[i];
-    if (!prevNode) break;
-    const { width } = calculateContainerDimensions(prevNode.name, systemData);
-    x += width + NODE_MARGIN;
-  }
-
-  return {
-    x,
-    y: row * LEVEL_HEIGHT,
-  };
-};
-
-// Add helper function to check if two nodes have an ancestor/descendant relationship
-const hasAncestorDescendantRelationship = (
-  source: string,
-  target: string,
-  systemData: SystemVisualizerProps["systemData"],
-): boolean => {
-  // Check if target is a descendant of source
-  const isDescendant = (current: string, ancestor: string): boolean => {
-    if (current === ancestor) return true;
-    const node = systemData.components.find((c) => c.name === current);
-    if (!node?.parent) return false;
-    return isDescendant(node.parent, ancestor);
-  };
-
-  // Check if source is a descendant of target (target is ancestor of source)
-  const isAncestor = (current: string, descendant: string): boolean => {
-    return isDescendant(descendant, current);
-  };
-
-  return isDescendant(target, source) || isAncestor(source, target);
 };
 
 export const SystemVisualizer: FC<SystemVisualizerProps> = ({
