@@ -9,6 +9,14 @@ export const TOP_MARGIN = 60; // Space for parent node's label
 export const NODE_MARGIN = NODE_PARENT_PADDING * 2; // Space between nodes
 export const ROW_MARGIN = 30; // Space between rows
 export const LEVEL_HEIGHT = 200;
+export const HORIZONTAL_SPACING = 200;
+export const VERTICAL_SPACING = 100;
+
+export interface SystemComponent {
+  name: string;
+  children: string[];
+  parent: string | undefined;
+}
 
 export interface ComponentCounts {
   visible: number;
@@ -395,45 +403,46 @@ export function hasCircularEventRelationship(
   return hasCycle(from);
 }
 
-export const calculateFilteredPosition = (
+export function calculateFilteredPosition(
   componentName: string,
-  systemData: SystemVisualizerProps["systemData"],
+  systemData: { components: SystemComponent[] },
   filteredComponent: string | null,
-): { x: number; y: number } => {
+): { x: number; y: number } {
   if (!filteredComponent) {
-    return calculatePositionForRoot(componentName, systemData);
+    return { x: 0, y: TOP_MARGIN };
   }
 
-  // If this is the filtered component, center it
-  if (componentName === filteredComponent) {
-    return {
-      x: 0,
-      y: 0, // TOP_MARGIN
-    };
-  }
-
-  // Find the component and its parent
   const component = systemData.components.find((c) => c.name === componentName);
-  if (!component) return { x: 0, y: TOP_MARGIN };
+  if (!component) {
+    return { x: 0, y: TOP_MARGIN };
+  }
 
-  // If this is a child of the filtered component, position it relative to the filtered component
+  // If this is the filtered component, position it at the top
+  if (componentName === filteredComponent) {
+    return { x: 0, y: 0 };
+  }
+
+  // If this is a child of the filtered component, position it below
   if (component.parent === filteredComponent) {
-    const siblings = systemData.components.filter(
-      (c) => c.parent === filteredComponent,
+    const parent = systemData.components.find(
+      (c) => c.name === filteredComponent,
     );
-    const index = siblings.findIndex((c) => c.name === componentName);
-    const totalSiblings = siblings.length;
+    if (!parent) {
+      return { x: 0, y: TOP_MARGIN + VERTICAL_SPACING };
+    }
 
-    // Calculate position in a grid layout
-    const row = Math.floor(index / NODES_PER_ROW);
-    const col = index % NODES_PER_ROW;
-
+    const childIndex = parent.children.indexOf(componentName);
     return {
-      x: col * (NODE_MIN_WIDTH + NODE_MARGIN),
-      y: TOP_MARGIN + row * (NODE_MIN_HEIGHT + ROW_MARGIN),
+      x: (childIndex + 1) * HORIZONTAL_SPACING,
+      y: TOP_MARGIN + VERTICAL_SPACING,
     };
   }
 
-  // For other components, use the default position
-  return calculatePositionForRoot(componentName, systemData);
-};
+  // If this is a parent of the filtered component, position it above
+  if (component.children.includes(filteredComponent)) {
+    return { x: 0, y: -VERTICAL_SPACING };
+  }
+
+  // Default position for other components
+  return { x: 0, y: TOP_MARGIN };
+}
