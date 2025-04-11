@@ -1,15 +1,34 @@
 import { getSystemEvents, type System } from "./core-system";
 
-export const getVisualizerSystemData = (system: System) => {
+export interface EventRelationship {
+  from: string;
+  to: string;
+  type: "event";
+  name: string;
+}
+
+export interface SystemVisualizerData {
+  components: Array<{
+    name: string;
+    parent: string | undefined;
+    children: string[];
+    instances: Array<{
+      id: string;
+      data: Record<string, unknown>;
+      childInstanceIds?: string[];
+      parentInstanceId?: string;
+    }>;
+  }>;
+  events?: EventRelationship[];
+}
+
+export const getVisualizerSystemData = (
+  system: System,
+): SystemVisualizerData => {
   // const system = visualizerSystem;
 
   // Get all registered events by checking event handlers
-  const events: Array<{
-    from: string;
-    to: string;
-    type: "event";
-    name: string;
-  }> = [];
+  const events: EventRelationship[] = [];
 
   // Get all components
   const components = Array.from(system.getComponents());
@@ -50,6 +69,12 @@ export const getVisualizerSystemData = (system: System) => {
       name: component.getName(),
       parent: component.getParent()?.getName() ?? undefined,
       children: component.getChildren().map((child) => child.getName()),
+      instances: component.getInstanceIds().map((instanceId) => ({
+        id: instanceId,
+        data: component.getInstance(instanceId) ?? {},
+        childInstanceIds: component.getInstance(instanceId)?.childInstanceIds,
+        parentInstanceId: component.getInstance(instanceId)?.parentInstanceId,
+      })),
     })),
     events,
   };

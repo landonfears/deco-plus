@@ -4,26 +4,28 @@ export const system = new System();
 
 // Create components
 const parent = system.createComponent("parent", {});
-parent.on("STARTED_SYSTEM", async (instanceId) => {
-  console.log("Parent received STARTED_SYSTEM event");
+parent.on("STARTED_SYSTEM", async (instanceId, data) => {
+  console.log(`Parent instance ${instanceId} received STARTED_SYSTEM event`);
   return { update: {} };
 });
 
 const child1 = system.createComponent("child1", {});
 const child2 = system.createComponent("child2", {});
-child2.on("HAD_HICCUPS", async (instanceId) => {
-  console.log("Child2 received HAD_HICCUPS event");
+child2.on("HAD_HICCUPS", async (instanceId, data) => {
+  console.log(`Child2 instance ${instanceId} received HAD_HICCUPS event`);
   return { update: {} };
 });
 const grandchild = system.createComponent("grandchild", {});
-grandchild.on("STARTED_SYSTEM", async (instanceId) => {
-  console.log("Grandchild received STARTED_SYSTEM event");
+grandchild.on("STARTED_SYSTEM", async (instanceId, data) => {
+  console.log(
+    `Grandchild instance ${instanceId} received STARTED_SYSTEM event`,
+  );
   return {
     send: [
       {
         component: "child2",
         event: "HAD_HICCUPS",
-        data: {},
+        data: { targetInstanceId: "child2_1" },
       },
     ],
   };
@@ -34,7 +36,7 @@ child1.setParent("parent");
 child2.setParent("parent");
 grandchild.setParent("child1");
 
-// Create instances for each component
+// Create instances for each component with explicit IDs
 parent.createInstance("parent", "parent_1", {
   name: "Main Parent",
   status: "active",
@@ -79,28 +81,28 @@ grandchild.createInstance("grandchild", "grandchild_3", {
   priority: "low",
 });
 
-// Set up system event handling
+// Set up system event handling with explicit instance targeting
 const systemComponent = system.getComponent("system");
 if (systemComponent) {
   systemComponent.on("INITIALIZED_SYSTEM", async (instanceId) => {
-    console.log("System initialized");
+    console.log(`System instance ${instanceId} initialized`);
     return {
       send: [
         {
           component: "parent",
           event: "STARTED_SYSTEM",
-          data: {},
+          data: { targetInstanceId: "parent_1" },
         },
         {
           component: "grandchild",
           event: "STARTED_SYSTEM",
-          data: {},
+          data: { targetInstanceId: "grandchild_1" },
         },
       ],
     };
   });
 }
 
-// Initialize the system
+// Initialize the system with explicit instance
 system.queueEvent("system", "system_1", "INITIALIZED_SYSTEM", {});
 system.processEvents().catch(console.error);

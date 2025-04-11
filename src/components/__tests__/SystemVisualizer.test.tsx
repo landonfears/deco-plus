@@ -1,19 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { SystemVisualizer } from "../SystemVisualizer";
+import { SystemVisualizerWithProvider } from "../SystemVisualizer";
 import { getVisualizerSystemData } from "~/system/visualizer";
 import { system } from "~/system/visualizer-system";
 
 describe("SystemVisualizer", () => {
   it("renders the visualizer container", () => {
     const systemData = getVisualizerSystemData(system);
-    render(<SystemVisualizer systemData={systemData} />);
+    render(<SystemVisualizerWithProvider systemData={systemData} />);
     expect(screen.getByTestId("system-visualizer")).toBeInTheDocument();
   });
 
   it("renders all component nodes with proper nesting", async () => {
     const systemData = getVisualizerSystemData(system);
-    render(<SystemVisualizer systemData={systemData} />);
+    render(<SystemVisualizerWithProvider systemData={systemData} />);
 
     // Check for all component nodes
     expect(screen.getByTestId("node-parent")).toBeInTheDocument();
@@ -42,7 +42,7 @@ describe("SystemVisualizer", () => {
   });
 
   it("handles empty system data", () => {
-    render(<SystemVisualizer systemData={{ components: [] }} />);
+    render(<SystemVisualizerWithProvider systemData={{ components: [] }} />);
     expect(screen.getByTestId("system-visualizer")).toBeInTheDocument();
   });
 });
@@ -51,7 +51,7 @@ describe("SystemVisualizer Filtering", () => {
   const systemData = getVisualizerSystemData(system);
 
   it("renders all components when no filter is applied", async () => {
-    render(<SystemVisualizer systemData={systemData} />);
+    render(<SystemVisualizerWithProvider systemData={systemData} />);
 
     // Check that all components are rendered
     expect(screen.getByTestId("node-parent")).toBeInTheDocument();
@@ -62,7 +62,10 @@ describe("SystemVisualizer Filtering", () => {
 
   it("filters components when a child component is selected", () => {
     render(
-      <SystemVisualizer systemData={systemData} filterComponent="child1" />,
+      <SystemVisualizerWithProvider
+        systemData={systemData}
+        filterComponent="child1"
+      />,
     );
 
     // Check that only Root and its children are visible
@@ -74,7 +77,10 @@ describe("SystemVisualizer Filtering", () => {
 
   it("filters components when another child component is selected", () => {
     render(
-      <SystemVisualizer systemData={systemData} filterComponent="child2" />,
+      <SystemVisualizerWithProvider
+        systemData={systemData}
+        filterComponent="child2"
+      />,
     );
 
     // Check that only Root and its children are visible

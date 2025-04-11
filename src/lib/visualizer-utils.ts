@@ -1,3 +1,7 @@
+import type {
+  EventRelationship,
+  SystemVisualizerData,
+} from "~/system/visualizer";
 import type { System, Component } from "../system/core-system";
 
 // Layout configuration
@@ -23,12 +27,6 @@ export interface ComponentCounts {
   total: number;
 }
 
-export interface EventRelationship {
-  from: string;
-  to: string;
-  name: string;
-}
-
 export interface NodeBounds {
   x: number;
   y: number;
@@ -50,14 +48,7 @@ export interface SimpleNode {
 }
 
 export interface SystemVisualizerProps {
-  systemData: {
-    components: Array<{
-      name: string;
-      parent: string | undefined;
-      children: string[];
-    }>;
-    events?: EventRelationship[];
-  };
+  systemData: SystemVisualizerData;
   filterComponent?: string | null;
 }
 
@@ -171,6 +162,7 @@ export function getEventRelationships(
       relationships.push({
         from: component.getName(),
         to: component.getName(),
+        type: "event",
         name: event,
       });
     }
@@ -376,32 +368,49 @@ export const calculatePositionForRoot = (
   };
 };
 
-export function hasCircularEventRelationship(
-  from: string,
-  to: string,
+export const hasCircularEventRelationship = (
+  source: string,
+  target: string,
   events: EventRelationship[],
-): boolean {
-  const visited = new Set<string>();
-  const stack = new Set<string>();
-
-  function hasCycle(node: string): boolean {
-    if (stack.has(node)) return true;
-    if (visited.has(node)) return false;
-
-    visited.add(node);
-    stack.add(node);
-
-    const outgoingEvents = events.filter((e) => e.from === node);
-    for (const event of outgoingEvents) {
-      if (hasCycle(event.to)) return true;
-    }
-
-    stack.delete(node);
-    return false;
+  visited: Set<string> = new Set(),
+): boolean => {
+  if (visited.has(target)) {
+    return target === source;
   }
 
-  return hasCycle(from);
-}
+  visited.add(target);
+  const outgoingEvents = events.filter((e) => e.from === target);
+
+  return outgoingEvents.some((event) =>
+    hasCircularEventRelationship(source, event.to, events, new Set(visited)),
+  );
+};
+// export function hasCircularEventRelationship(
+//   from: string,
+//   to: string,
+//   events: EventRelationship[],
+// ): boolean {
+//   const visited = new Set<string>();
+//   const stack = new Set<string>();
+
+//   function hasCycle(node: string): boolean {
+//     if (stack.has(node)) return true;
+//     if (visited.has(node)) return false;
+
+//     visited.add(node);
+//     stack.add(node);
+
+//     const outgoingEvents = events.filter((e) => e.from === node);
+//     for (const event of outgoingEvents) {
+//       if (hasCycle(event.to)) return true;
+//     }
+
+//     stack.delete(node);
+//     return false;
+//   }
+
+//   return hasCycle(from);
+// }
 
 export function calculateFilteredPosition(
   componentName: string,
@@ -446,3 +455,15 @@ export function calculateFilteredPosition(
   // Default position for other components
   return { x: 0, y: TOP_MARGIN };
 }
+
+export type EdgeData = {
+  label?: string;
+  testid?: string;
+  eventName?: string;
+};
+// Custom node component
+export const showOrHideStyle = (show: boolean) => {
+  return {
+    ...(show ? {} : { background: "transparent", border: 0 }),
+  };
+};

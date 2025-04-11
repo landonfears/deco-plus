@@ -1,7 +1,7 @@
 // Core system types
-type ComponentName = string;
-type InstanceId = string;
-type EventName = string;
+export type ComponentName = string;
+export type InstanceId = string;
+export type EventName = string;
 
 // Base types for component data and event data
 type ComponentData = Record<string, unknown> & {
