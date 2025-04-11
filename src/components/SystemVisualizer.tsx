@@ -234,7 +234,7 @@ const FitNodes = ({
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [filteredComponent, fitView, nodes, lastFilteredComponent]);
+  }, [filteredComponent, fitView, lastFilteredComponent]);
 
   return null;
 };
