@@ -17,6 +17,8 @@ import ReactFlow, {
   BaseEdge,
   EdgeLabelRenderer,
   getSmoothStepPath,
+  useReactFlow,
+  ReactFlowProvider,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { NodeResizer } from "@reactflow/node-resizer";
@@ -42,9 +44,10 @@ import {
   // hasAncestorDescendantRelationship,
   calculateContainerDimensions,
   calculatePositionForRoot,
-  calculateFilteredPosition,
+  // calculateFilteredPosition,
   // hasCircularEventRelationship,
 } from "~/lib/visualizer-utils";
+import { usePrevious } from "~/hooks/use-previous";
 
 type EdgeData = {
   label?: string;
@@ -59,7 +62,7 @@ const showOrHideStyle = (show: boolean) => {
 };
 const ComponentNode = ({
   data,
-  selected,
+  // selected,
 }: {
   data: {
     label: string;
@@ -102,7 +105,7 @@ const ComponentNode = ({
         }`}
         data-testid={`node-${data.label}`}
       >
-        <div className="text-lg font-bold text-neutral-800">{data.label}</div>
+        <div className="text-lg font-bold text-neutral-600">{data.label}</div>
         {data.hasChildren && (
           <div className="flex-1" data-testid={`node-${data.label}-children`} />
         )}
@@ -208,6 +211,31 @@ const edgeTypes: EdgeTypes = {
   custom: CustomEdge,
 };
 
+const FitNodes = ({
+  filteredComponent,
+  nodes,
+}: {
+  filteredComponent: string | null;
+  nodes: Node[];
+}) => {
+  const { fitView } = useReactFlow();
+  const lastFilteredComponent = usePrevious(filteredComponent);
+
+  // Add effect to fit view when filtered component changes
+  useEffect(() => {
+    // Wait for nodes to be updated
+    const timer = setTimeout(() => {
+      if (lastFilteredComponent !== filteredComponent) {
+        fitView({ padding: 0.3, duration: 300 });
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [filteredComponent, fitView, nodes, lastFilteredComponent]);
+
+  return null;
+};
+
 export const SystemVisualizer: FC<SystemVisualizerProps> = ({
   systemData,
   filterComponent = null,
@@ -217,7 +245,7 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({
   const [filteredComponent, setFilteredComponent] = useState<string | null>(
     filterComponent,
   );
-
+  // useFitNodes({ filteredComponent, nodes });
   // Get all unique component names for the filter dropdown
   const componentNames = useMemo(() => {
     const names = new Set<string>();
@@ -451,10 +479,10 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({
 
       const position = parentId
         ? (parentChildPositions?.get(componentName) ?? { x: 0, y: TOP_MARGIN })
-        : calculateFilteredPosition(
+        : calculatePositionForRoot(
             componentName,
             systemData,
-            filteredComponent,
+            // filteredComponent,
           );
 
       // Check if any components have this node as their parent
@@ -481,9 +509,10 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({
         style: {
           width,
           height,
-          padding: 0,
-          borderRadius: 8,
+          padding: 16,
+          borderRadius: 4,
           zIndex: 0,
+          border: "1px solid #999999",
         },
       });
 
@@ -572,32 +601,43 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({
         </Select>
       </div>
       <div className="flex-1">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.3 }}
-          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-          attributionPosition="bottom-right"
-          proOptions={{ hideAttribution: true }}
-          snapToGrid={true}
-          snapGrid={[20, 20]}
-          nodesDraggable={true}
-          nodesConnectable={false}
-          elementsSelectable={true}
-          panOnDrag={true}
-          minZoom={0.1}
-          maxZoom={2}
-          className="bg-gray-50 [&_.react-flow__edge]:!z-[1000]"
-        >
-          <Background color="#aaaaaa" gap={20} />
-          <Controls showInteractive={true} />
-        </ReactFlow>
+        <ReactFlowProvider>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            fitView
+            fitViewOptions={{ padding: 0.3 }}
+            defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+            attributionPosition="bottom-right"
+            proOptions={{ hideAttribution: true }}
+            snapToGrid={true}
+            snapGrid={[20, 20]}
+            nodesDraggable={true}
+            nodesConnectable={false}
+            elementsSelectable={true}
+            panOnDrag={true}
+            minZoom={0.1}
+            maxZoom={2}
+            className="bg-gray-50 [&_.react-flow__edge]:!z-[1000]"
+          >
+            <Background color="#aaaaaa" gap={20} />
+            <Controls showInteractive={true} />
+            <FitNodes filteredComponent={filteredComponent} nodes={nodes} />
+          </ReactFlow>
+        </ReactFlowProvider>
       </div>
     </div>
+  );
+};
+
+export const SystemVisualizerWithProvider = (props: SystemVisualizerProps) => {
+  return (
+    <ReactFlowProvider>
+      <SystemVisualizer {...props} />
+    </ReactFlowProvider>
   );
 };

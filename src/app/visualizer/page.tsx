@@ -1,6 +1,6 @@
 "use client";
 
-import { SystemVisualizer } from "../../components/SystemVisualizer";
+import { SystemVisualizerWithProvider } from "../../components/SystemVisualizer";
 import { getVisualizerSystemData } from "../../system/visualizer";
 import { system } from "../../system/visualizer-system";
 export default function VisualizerPage() {
@@ -8,7 +8,7 @@ export default function VisualizerPage() {
 
   return (
     <div className="h-screen w-screen">
-      <SystemVisualizer systemData={systemData} />
+      <SystemVisualizerWithProvider systemData={systemData} />
     </div>
   );
 }
