@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, type FC } from "react";
+import { useCallback, useEffect, type FC, useState, useMemo } from "react";
 import ReactFlow, {
   type Node,
   type Edge,
@@ -21,7 +21,19 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { NodeResizer } from "@reactflow/node-resizer";
 import "@reactflow/node-resizer/dist/style.css";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 
+type EdgeData = {
+  label?: string;
+  testid?: string;
+  eventName?: string;
+};
 // Custom node component
 const showOrHideStyle = (show: boolean) => {
   return {
@@ -148,6 +160,7 @@ const CustomEdge = ({
     offset,
   });
 
+  const edgeData = data as EdgeData;
   return (
     <>
       <path
@@ -157,7 +170,7 @@ const CustomEdge = ({
         style={style}
         markerEnd={markerEnd}
         fill="none"
-        data-testid={data?.testid}
+        data-testid={edgeData?.testid}
       />
       <EdgeLabelRenderer>
         <div
@@ -166,7 +179,7 @@ const CustomEdge = ({
           }}
           className="nodrag nopan absolute z-[1000] rounded-md bg-pink-50 p-2 text-xs font-bold text-pink-700"
         >
-          {data?.label}
+          {edgeData?.label}
         </div>
       </EdgeLabelRenderer>
     </>
@@ -198,6 +211,7 @@ interface SystemVisualizerProps {
     }>;
     events?: EventRelationship[];
   };
+  filterComponent?: string | null;
 }
 
 // Layout configuration
@@ -422,7 +436,7 @@ const hasAncestorDescendantRelationship = (
   const isDescendant = (current: string, ancestor: string): boolean => {
     if (current === ancestor) return true;
     const node = systemData.components.find((c) => c.name === current);
-    if (!node || !node.parent) return false;
+    if (!node?.parent) return false;
     return isDescendant(node.parent, ancestor);
   };
 
@@ -434,9 +448,24 @@ const hasAncestorDescendantRelationship = (
   return isDescendant(target, source) || isAncestor(source, target);
 };
 
-export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
+export const SystemVisualizer: FC<SystemVisualizerProps> = ({
+  systemData,
+  filterComponent = null,
+}) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [filteredComponent, setFilteredComponent] = useState<string | null>(
+    filterComponent,
+  );
+
+  // Get all unique component names for the filter dropdown
+  const componentNames = useMemo(() => {
+    const names = new Set<string>();
+    systemData.components.forEach((component) => {
+      names.add(component.name);
+    });
+    return Array.from(names).sort();
+  }, [systemData.components]);
 
   // Add helper function to check if two nodes have a circular event relationship
   const hasCircularEventRelationship = (
@@ -465,12 +494,47 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
     const handleConnections = new Map<string, HandleConnections>();
     const nodeDimensions = new Map<string, NodeBounds>();
 
+    // Helper function to check if a component should be included
+    const shouldIncludeComponent = (componentName: string): boolean => {
+      if (!filteredComponent) return true;
+
+      // Include the filtered component
+      if (componentName === filteredComponent) return true;
+
+      // Include the parent of the filtered component
+      const filteredNode = systemData.components.find(
+        (c) => c.name === filteredComponent,
+      );
+      if (filteredNode?.parent === componentName) return true;
+
+      // Include all descendants of the filtered component
+      const isDescendant = (current: string, ancestor: string): boolean => {
+        if (current === ancestor) return true;
+        const node = systemData.components.find((c) => c.name === current);
+        if (!node?.parent) return false;
+        return isDescendant(node.parent, ancestor);
+      };
+
+      if (isDescendant(componentName, filteredComponent)) return true;
+
+      // Include all ancestors of the filtered component
+      const isAncestor = (current: string, descendant: string): boolean => {
+        return isDescendant(descendant, current);
+      };
+
+      if (isAncestor(componentName, filteredComponent)) return true;
+
+      return false;
+    };
+
     // Initialize handle connections for all nodes
     systemData.components.forEach((component) => {
-      handleConnections.set(component.name, {
-        sourceHandles: [],
-        targetHandles: [],
-      });
+      if (shouldIncludeComponent(component.name)) {
+        handleConnections.set(component.name, {
+          sourceHandles: [],
+          targetHandles: [],
+        });
+      }
     });
 
     // Function to get or calculate node bounds
@@ -494,7 +558,7 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
             component.parent,
             systemData,
           );
-          const relativePos = childPositions.get(componentName) || {
+          const relativePos = childPositions.get(componentName) ?? {
             x: 0,
             y: TOP_MARGIN,
           };
@@ -522,6 +586,13 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
     const processedEventPairs = new Set<string>();
 
     systemData.events?.forEach((event) => {
+      // Skip if either component is not included in the filtered view
+      if (
+        !shouldIncludeComponent(event.from) ||
+        !shouldIncludeComponent(event.to)
+      )
+        return;
+
       const eventPairKey = `${event.from}-${event.to}`;
       if (processedEventPairs.has(eventPairKey)) return;
 
@@ -531,7 +602,7 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
         hasCircularEventRelationship(
           event.from,
           event.to,
-          systemData.events || [],
+          systemData.events ?? [],
         )
       ) {
         return;
@@ -564,6 +635,7 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
         targetConn.targetHandles.push(targetHandle);
       }
 
+      // Create the edge with appropriate styling
       newEdges.push({
         id: `${event.from}-${event.to}-${event.name}`,
         source: event.from,
@@ -599,7 +671,8 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
       horizontalPosition = 0,
       parentChildPositions?: Map<string, { x: number; y: number }>,
     ) => {
-      if (visited.has(componentName)) return;
+      if (visited.has(componentName) || !shouldIncludeComponent(componentName))
+        return;
       visited.add(componentName);
 
       const component = systemData.components.find(
@@ -637,9 +710,9 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
           label: componentName,
           hasChildren,
           sourceHandles:
-            handleConnections.get(componentName)?.sourceHandles || [],
+            handleConnections.get(componentName)?.sourceHandles ?? [],
           targetHandles:
-            handleConnections.get(componentName)?.targetHandles || [],
+            handleConnections.get(componentName)?.targetHandles ?? [],
         },
         position,
         draggable: parentId ? false : true,
@@ -669,7 +742,7 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
     // Build all components, starting with root components
     let rootIndex = 0;
     systemData.components.forEach((component) => {
-      if (!component.parent) {
+      if (!component.parent && shouldIncludeComponent(component.name)) {
         const { childPositions } = calculateContainerDimensions(
           component.name,
           systemData,
@@ -681,7 +754,10 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
 
     // Build any remaining components that weren't reached through the root components
     systemData.components.forEach((component) => {
-      if (!visited.has(component.name)) {
+      if (
+        !visited.has(component.name) &&
+        shouldIncludeComponent(component.name)
+      ) {
         const parentComponent = systemData.components.find(
           (c) => c.name === component.parent,
         );
@@ -697,7 +773,13 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
 
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [systemData.components, systemData.events, setNodes, setEdges]);
+  }, [
+    systemData.components,
+    systemData.events,
+    setNodes,
+    setEdges,
+    filteredComponent,
+  ]);
 
   // Initialize the visualization when the component mounts
   useEffect(() => {
@@ -705,32 +787,57 @@ export const SystemVisualizer: FC<SystemVisualizerProps> = ({ systemData }) => {
   }, [buildComponentNodes]);
 
   return (
-    <div className="h-full w-full" data-testid="system-visualizer">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.3 }}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-        attributionPosition="bottom-right"
-        proOptions={{ hideAttribution: true }}
-        snapToGrid={true}
-        snapGrid={[20, 20]}
-        nodesDraggable={true}
-        nodesConnectable={false}
-        elementsSelectable={true}
-        panOnDrag={true}
-        minZoom={0.1}
-        maxZoom={2}
-        className="bg-gray-50 [&_.react-flow__edge]:!z-[1000]"
-      >
-        <Background color="#aaaaaa" gap={20} />
-        <Controls showInteractive={true} />
-      </ReactFlow>
+    <div
+      className="flex h-full w-full flex-col"
+      data-testid="system-visualizer"
+    >
+      <div className="border-b border-gray-200 p-4">
+        <Select
+          value={filteredComponent ?? "all"}
+          onValueChange={(value: string) =>
+            setFilteredComponent(value === "all" ? null : value)
+          }
+        >
+          <SelectTrigger className="w-[180px]" data-testid="component-filter">
+            <SelectValue placeholder="All Components" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Components</SelectItem>
+            {componentNames.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex-1">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.3 }}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+          attributionPosition="bottom-right"
+          proOptions={{ hideAttribution: true }}
+          snapToGrid={true}
+          snapGrid={[20, 20]}
+          nodesDraggable={true}
+          nodesConnectable={false}
+          elementsSelectable={true}
+          panOnDrag={true}
+          minZoom={0.1}
+          maxZoom={2}
+          className="bg-gray-50 [&_.react-flow__edge]:!z-[1000]"
+        >
+          <Background color="#aaaaaa" gap={20} />
+          <Controls showInteractive={true} />
+        </ReactFlow>
+      </div>
     </div>
   );
 };
