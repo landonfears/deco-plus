@@ -62,7 +62,7 @@ describe("Core System", () => {
     });
 
     test("should create instances with initial data", () => {
-      person.createInstance("person_1", { name: "Alice", age: 30 });
+      person.createInstance("person", "person_1", { name: "Alice", age: 30 });
       const instance = person.getInstance("person_1") as unknown as PersonData;
 
       expect(instance).toEqual({
@@ -96,7 +96,7 @@ describe("Core System", () => {
         },
       );
 
-      person.createInstance("person_1");
+      person.createInstance("person", "person_1", {});
       system.queueEvent("person", "person_1", "FELT_HUNGER", {});
       await system.processEvents();
 
@@ -133,7 +133,7 @@ describe("Core System", () => {
         },
       );
 
-      person.createInstance("person_1");
+      person.createInstance("person", "person_1", {});
       system.queueEvent("person", "person_1", "FELT_HUNGER", {});
       await system.processEvents();
 
@@ -161,7 +161,7 @@ describe("Core System", () => {
         return {};
       });
 
-      person.createInstance("person_1");
+      person.createInstance("person", "person_1", {});
       system.queueEvent("person", "person_1", "EVENT_1_OCCURRED", {});
       await system.processEvents();
 
@@ -185,8 +185,8 @@ describe("Core System", () => {
         },
       );
 
-      person.createInstance("person_1");
-      person.createInstance("person_2");
+      person.createInstance("person", "person_1", {});
+      person.createInstance("person", "person_2", {});
 
       system.queueEvent("person", "person_1", "STARTED_MOVING", {
         movementMethod: "walking",
@@ -219,7 +219,7 @@ describe("Core System", () => {
         },
       );
 
-      person.createInstance("person_1", { age: 20 });
+      person.createInstance("person", "person_1", { age: 20 });
       system.queueEvent("person", "person_1", "AGE_UPDATED", { age: 30 });
       await system.processEvents();
 
@@ -248,7 +248,7 @@ describe("Core System", () => {
           },
         );
 
-        person.createInstance("person_1", { name: "Alice", age: 20 });
+        person.createInstance("person", "person_1", { name: "Alice", age: 20 });
 
         // First event cycle
         system.queueEvent("person", "person_1", "AGE_UPDATED", { age: 30 });
@@ -282,8 +282,8 @@ describe("Core System", () => {
           },
         );
 
-        person.createInstance("person_1", { name: "Alice", age: 20 });
-        person.createInstance("person_2", { name: "Bob", age: 25 });
+        person.createInstance("person", "person_1", { name: "Alice", age: 20 });
+        person.createInstance("person", "person_2", { name: "Bob", age: 25 });
 
         // Update both instances
         system.queueEvent("person", "person_1", "AGE_UPDATED", { age: 30 });
@@ -322,7 +322,7 @@ describe("Core System", () => {
           };
         });
 
-        person.createInstance("person_1", { name: "Alice", age: 20 });
+        person.createInstance("person", "person_1", { name: "Alice", age: 20 });
 
         // Perform multiple sequential updates
         for (let i = 0; i < 5; i++) {
@@ -366,7 +366,7 @@ describe("Core System", () => {
           return {};
         });
 
-        person.createInstance("person_1");
+        person.createInstance("person", "person_1", {});
         system.queueEvent("person", "person_1", "EVENT_1_OCCURRED", {});
         await system.processEvents();
 
@@ -396,7 +396,7 @@ describe("Core System", () => {
           return {};
         });
 
-        person.createInstance("person_1");
+        person.createInstance("person", "person_1", {});
         system.queueEvent("person", "person_1", "CHAIN_A_STARTED", {});
         system.queueEvent("person", "person_1", "CHAIN_B_STARTED", {});
         await system.processEvents();
@@ -433,8 +433,8 @@ describe("Core System", () => {
           },
         );
 
-        person.createInstance("person_1", { name: "Alice", age: 20 });
-        person.createInstance("person_2", { name: "Bob", age: 25 });
+        person.createInstance("person", "person_1", { name: "Alice", age: 20 });
+        person.createInstance("person", "person_2", { name: "Bob", age: 25 });
 
         // Update both instances
         system.queueEvent("person", "person_1", "AGE_UPDATED", { age: 30 });
@@ -459,7 +459,7 @@ describe("Core System", () => {
           throw new Error("Test error");
         });
 
-        person.createInstance("person_1", { name: "Alice", age: 20 });
+        person.createInstance("person", "person_1", { name: "Alice", age: 20 });
 
         // Queue the error event
         system.queueEvent("person", "person_1", "ERROR_OCCURRED", {});
@@ -479,7 +479,7 @@ describe("Core System", () => {
           },
         );
 
-        person.createInstance("person_1", { name: "Alice", age: 20 });
+        person.createInstance("person", "person_1", { name: "Alice", age: 20 });
 
         // Queue event with malformed data
         system.queueEvent("person", "person_1", "AGE_UPDATED", {
@@ -506,7 +506,7 @@ describe("Core System", () => {
           };
         });
 
-        person.createInstance("person_1", { name: "Alice", age: 20 });
+        person.createInstance("person", "person_1", { name: "Alice", age: 20 });
 
         // Queue event that adds a new property
         system.queueEvent("person", "person_1", "PROPERTY_ADDED", {});
@@ -520,7 +520,7 @@ describe("Core System", () => {
       });
 
       test("should handle invalid event types", async () => {
-        person.createInstance("person_1", { name: "Alice", age: 20 });
+        person.createInstance("person", "person_1", { name: "Alice", age: 20 });
 
         // Queue event with invalid type
         system.queueEvent(
@@ -559,7 +559,7 @@ describe("Core System", () => {
           };
         });
 
-        person.createInstance("person_1", { name: "Alice", age: 20 });
+        person.createInstance("person", "person_1", { name: "Alice", age: 20 });
         system.queueEvent("person", "person_1", "STATE_UPDATED", {});
         await system.processEvents();
 
@@ -582,7 +582,7 @@ describe("Core System", () => {
           };
         });
 
-        person.createInstance("person_1", {
+        person.createInstance("person", "person_1", {
           name: "Alice",
           age: 20,
           isHungry: false,
@@ -632,7 +632,7 @@ describe("Core System", () => {
           };
         });
 
-        complexPerson.createInstance("person_1");
+        complexPerson.createInstance("complexPerson", "person_1", {});
         system.queueEvent("complexPerson", "person_1", "STATS_UPDATED", {});
         await system.processEvents();
 
@@ -666,7 +666,7 @@ describe("Core System", () => {
           };
         });
 
-        personWithItems.createInstance("person_1");
+        personWithItems.createInstance("personWithItems", "person_1", {});
         system.queueEvent("personWithItems", "person_1", "ITEM_ADDED", {});
         await system.processEvents();
 
@@ -722,8 +722,8 @@ describe("Core System", () => {
         const personId = "person_1";
         const fridgeId = "fridge_1";
 
-        personComponent.createInstance(personId, { isHungry: true });
-        fridgeComponent.createInstance(fridgeId, { isOpen: false });
+        personComponent.createInstance("person", personId, { isHungry: true });
+        fridgeComponent.createInstance("fridge", fridgeId, { isOpen: false });
 
         // Queue the initial event
         system.queueEvent("person", personId, "FRIDGE_INTERACTED", {
@@ -806,9 +806,11 @@ describe("Core System", () => {
         );
 
         // Create instances and set up initial state
-        person.createInstance("person_1");
-        location.createInstance("kitchen", { occupants: [] });
-        location.createInstance("livingRoom", { occupants: ["person_1"] });
+        person.createInstance("person", "person_1", {});
+        location.createInstance("location", "kitchen", { occupants: [] });
+        location.createInstance("location", "livingRoom", {
+          occupants: ["person_1"],
+        });
 
         // Move person from living room to kitchen
         system.queueEvent("person", "person_1", "MOVED_TO", {
@@ -864,12 +866,12 @@ describe("Core System", () => {
         });
 
         // Create instances
-        person.createInstance("person_1", {
+        person.createInstance("person", "person_1", {
           name: "Alice",
           age: 20,
           isHungry: true,
         });
-        robot.createInstance("robot_1", {
+        robot.createInstance("robot", "robot_1", {
           batteryLevel: 50,
           isCharging: false,
         });

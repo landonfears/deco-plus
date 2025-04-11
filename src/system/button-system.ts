@@ -106,7 +106,7 @@ internalDev.on("BUILD_BUTTON", async (instanceId, data, component) => {
   if (!buttonComponent) {
     throw new Error("Button component not found");
   }
-  buttonComponent.createInstance(buildData.instanceId, {
+  buttonComponent.createInstance("button", buildData.instanceId, {
     id: buildData.instanceId,
     size: buildData.size,
     color: buildData.color,

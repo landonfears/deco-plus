@@ -53,7 +53,7 @@ describe("Nested Components", () => {
     const parent = system.createComponent("parent", {});
     const child = system.createComponent("child", {}, "parent");
 
-    parent.createInstance("test");
+    parent.createInstance("parent", "test", {});
 
     const parentInstance = parent.getInstance("test");
     const childInstance = child.getInstance("child_test");
@@ -68,7 +68,7 @@ describe("Nested Components", () => {
     const child = system.createComponent("child", {}, "parent");
     const grandchild = system.createComponent("grandchild", {}, "child");
 
-    parent.createInstance("test");
+    parent.createInstance("parent", "test", {});
 
     const parentInstance = parent.getInstance("test");
     const childInstance = child.getInstance("child_test");
@@ -97,8 +97,8 @@ describe("Nested Components", () => {
       return {};
     });
 
-    parent.createInstance("test");
-    child.createInstance("child_test");
+    parent.createInstance("parent", "test", {});
+    child.createInstance("child", "child_test", {});
 
     await child.processEvent("child_test", "test", {});
 
@@ -134,8 +134,12 @@ describe("Nested Components", () => {
       return { update: {}, send: [] }; // Return empty send array to prevent propagation
     });
 
-    parent.createInstance("test");
-    nonPropagatingChild.createInstance("nonPropagatingChild_test");
+    parent.createInstance("parent", "test", {});
+    nonPropagatingChild.createInstance(
+      "nonPropagatingChild",
+      "nonPropagatingChild_test",
+      {},
+    );
 
     await nonPropagatingChild.processEvent(
       "nonPropagatingChild_test",

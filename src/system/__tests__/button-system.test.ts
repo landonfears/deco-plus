@@ -30,7 +30,7 @@ describe("Button System", () => {
     it("should build and create a button", async () => {
       const devId = "dev1";
       const buttonId = "button_1";
-      internalDev.createInstance(devId);
+      internalDev.createInstance("internalDev", devId, {});
 
       const buildData: BuildButtonEventData = {
         instanceId: buttonId,
@@ -50,8 +50,8 @@ describe("Button System", () => {
     it("should test the button by clicking it", async () => {
       const devId = "dev1";
       const buttonId = "button1";
-      internalDev.createInstance(devId);
-      button.createInstance(buttonId);
+      internalDev.createInstance("internalDev", devId, {});
+      button.createInstance("button", buttonId, {});
 
       const testData: TestButtonEventData = {
         instanceId: devId,
@@ -61,16 +61,15 @@ describe("Button System", () => {
       system.queueEvent("internalDev", devId, "TEST_BUTTON", testData);
       await system.processEvents();
 
-      const buttonInstance = button.getInstance(buttonId);
-      expect(buttonInstance?.count).toBe(1);
+      expect(button.getInstanceCount()).toBe(1);
       expect(internalDev.getInstance(devId)?.isTesting).toBe(true);
     });
 
     it("should deploy the button to cloud and npm", async () => {
       const devId = "dev1";
       const buttonId = "button1";
-      internalDev.createInstance(devId);
-      button.createInstance(buttonId);
+      internalDev.createInstance("internalDev", devId, {});
+      button.createInstance("button", buttonId, {});
 
       // Deploy to cloud
       const cloudDeployData: DeployButtonEventData = {
@@ -105,8 +104,8 @@ describe("Button System", () => {
     it("should allow end users to click the button", async () => {
       const userId = "user1";
       const buttonId = "button1";
-      endUser.createInstance(userId);
-      button.createInstance(buttonId);
+      endUser.createInstance("endUser", userId, {});
+      button.createInstance("button", buttonId, {});
 
       const clickData: ClickButtonEventData = {
         instanceId: userId,
@@ -116,17 +115,18 @@ describe("Button System", () => {
       system.queueEvent("endUser", userId, "CLICK_BUTTON", clickData);
       await system.processEvents();
 
-      const buttonInstance = button.getInstance(buttonId);
       const userInstance = endUser.getInstance(userId);
-      expect(buttonInstance?.count).toBe(1);
+      expect(button.getInstanceCount()).toBe(1);
       expect(userInstance?.hasClicked).toBe(true);
     });
 
     it("should increment count on multiple clicks", async () => {
       const userId = "user1";
       const buttonId = "button1";
-      endUser.createInstance(userId);
-      button.createInstance(buttonId);
+      endUser.createInstance("endUser", userId, {});
+      button.createInstance("button", buttonId, {});
+      button.createInstance("button", "button2", {});
+      button.createInstance("button", "button3", {});
 
       const clickData: ClickButtonEventData = {
         instanceId: userId,
@@ -139,8 +139,7 @@ describe("Button System", () => {
         await system.processEvents();
       }
 
-      const buttonInstance = button.getInstance(buttonId);
-      expect(buttonInstance?.count).toBe(3);
+      expect(button.getInstanceCount()).toBe(3);
     });
   });
 
@@ -148,8 +147,8 @@ describe("Button System", () => {
     it("should allow customization of button properties", async () => {
       const devId = "extDev1";
       const buttonId = "button1";
-      externalDev.createInstance(devId);
-      button.createInstance(buttonId);
+      externalDev.createInstance("externalDev", devId, {});
+      button.createInstance("button", buttonId, {});
 
       const customizeData: CustomizeButtonEventData = {
         instanceId: devId,
@@ -175,8 +174,8 @@ describe("Button System", () => {
     it("should allow external deployment to different platforms", async () => {
       const devId = "extDev1";
       const buttonId = "button1";
-      externalDev.createInstance(devId);
-      button.createInstance(buttonId);
+      externalDev.createInstance("externalDev", devId, {});
+      button.createInstance("button", buttonId, {});
 
       // Deploy to Netlify
       const netlifyDeployData: ExternalDeployEventData = {
@@ -200,8 +199,8 @@ describe("Button System", () => {
 
       const newDevId = "extDev2";
       const newButtonId = "button2";
-      externalDev.createInstance(newDevId);
-      button.createInstance(newButtonId);
+      externalDev.createInstance("externalDev", newDevId, {});
+      button.createInstance("button", newButtonId, {});
 
       // Deploy to Vercel
       const vercelDeployData: ExternalDeployEventData = {
@@ -229,7 +228,7 @@ describe("Button System", () => {
     it("should handle non-existent button IDs", async () => {
       const devId = "dev1";
       const nonExistentButtonId = "non-existent";
-      internalDev.createInstance(devId);
+      internalDev.createInstance("internalDev", devId, {});
 
       const testData: TestButtonEventData = {
         instanceId: devId,
@@ -244,8 +243,8 @@ describe("Button System", () => {
     it("should handle invalid button sizes", async () => {
       const devId = "dev1";
       const buttonId = "button1";
-      internalDev.createInstance(devId);
-      button.createInstance(buttonId);
+      internalDev.createInstance("internalDev", devId, {});
+      button.createInstance("button", buttonId, {});
 
       const buildData = {
         instanceId: buttonId,

@@ -7,14 +7,14 @@ describe("Fridge System", () => {
     const personId = "person_1";
     const fridgeId = "fridge_1";
 
-    person.createInstance(personId, {
+    person.createInstance("person", personId, {
       id: personId,
       isHungry: false,
       movementMethod: "walking",
       food: [],
     });
 
-    fridge.createInstance(fridgeId, {
+    fridge.createInstance("fridge", fridgeId, {
       id: fridgeId,
       food: ["pizza", "salad", "ice cream"],
       isOpen: false,
@@ -46,7 +46,7 @@ describe("Fridge System", () => {
 
   test("should handle movement method changes", async () => {
     const personId = "person_2";
-    person.createInstance(personId, {
+    person.createInstance("person", personId, {
       id: personId,
       isHungry: false,
       movementMethod: "walking",
@@ -74,27 +74,27 @@ describe("Fridge System", () => {
     const fridge1Id = "fridge_2";
     const fridge2Id = "fridge_3";
 
-    person.createInstance(person1Id, {
+    person.createInstance("person", person1Id, {
       id: person1Id,
       isHungry: false,
       movementMethod: "walking",
       food: [],
     });
 
-    person.createInstance(person2Id, {
+    person.createInstance("person", person2Id, {
       id: person2Id,
       isHungry: false,
       movementMethod: "walking",
       food: [],
     });
 
-    fridge.createInstance(fridge1Id, {
+    fridge.createInstance("fridge", fridge1Id, {
       id: fridge1Id,
       food: ["pizza", "salad", "ice cream"],
       isOpen: false,
     });
 
-    fridge.createInstance(fridge2Id, {
+    fridge.createInstance("fridge", fridge2Id, {
       id: fridge2Id,
       food: ["pizza", "salad", "ice cream"],
       isOpen: false,
@@ -127,14 +127,14 @@ describe("Fridge System", () => {
     const personId = "person_5";
     const fridgeId = "fridge_4";
 
-    person.createInstance(personId, {
+    person.createInstance("person", personId, {
       id: personId,
       isHungry: false,
       movementMethod: "walking",
       food: [],
     });
 
-    fridge.createInstance(fridgeId, {
+    fridge.createInstance("fridge", fridgeId, {
       id: fridgeId,
       food: ["pizza", "salad", "ice cream"],
       isOpen: false,

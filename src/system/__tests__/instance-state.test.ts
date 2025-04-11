@@ -41,8 +41,8 @@ describe("Instance State Management", () => {
     const person = system.getComponent("person");
     if (!person) throw new Error("Person component not found");
 
-    person.createInstance("person_1");
-    person.createInstance("person_2");
+    person.createInstance("person", "person_1", {});
+    person.createInstance("person", "person_2", {});
 
     // Set different movement methods for each person
     system.queueEvent("person", "person_1", "STARTED_MOVING", {

@@ -4,7 +4,10 @@ type InstanceId = string;
 type EventName = string;
 
 // Base types for component data and event data
-type ComponentData = Record<string, unknown>;
+type ComponentData = Record<string, unknown> & {
+  parentInstanceId?: string;
+  childInstanceIds?: string[];
+};
 // Event names should follow a past tense verb format to indicate "something happened"
 type EventData = Record<string, unknown>;
 
@@ -77,8 +80,9 @@ export class Component {
 
   // Add shouldPropagateToParent method
   protected shouldPropagateToParent(event: EventName): boolean {
-    // By default, propagate all events to parent
-    return true;
+    // List of events that should not propagate to parent
+    const nonPropagatingEvents = ["init", "destroy", "update", "childUpdate"];
+    return !nonPropagatingEvents.includes(event);
   }
 
   // Logging utility
@@ -117,35 +121,75 @@ export class Component {
 
   // Modify createInstance to handle child instances
   createInstance(
+    componentId: ComponentName,
     instanceId: InstanceId,
-    initialData: Partial<ComponentData> = {},
-    createRelated = true,
+    data: ComponentData = {},
   ): void {
-    // Create current instance first
-    this.instances.set(instanceId, {
-      ...this.dataModel,
-      ...initialData,
-    });
+    const component = this.system.getComponent(componentId);
+    if (!component) {
+      throw new Error(`Component ${componentId} not found`);
+    }
 
-    if (createRelated) {
-      // Create parent instance if needed
-      if (this.parent) {
-        const parentComponent = this.getParent();
-        if (parentComponent) {
-          // Extract the base instance ID (remove the current component's prefix)
-          const baseInstanceId = instanceId.replace(`${this.name}_`, "");
-          // Create the parent instance ID
-          const parentInstanceId = `${this.parent}_${baseInstanceId}`;
-          parentComponent.createInstance(parentInstanceId, {}, false);
+    // Create instance with merged data from component model and provided data
+    const instanceData = {
+      ...component.dataModel, // Start with the component's data model
+      ...data, // Override with provided data
+    };
+
+    // Set the instance
+    component.instances.set(instanceId, instanceData);
+
+    // If this component has a parent, establish relationship
+    if (component.parent) {
+      const parentComponent = this.system.getComponent(component.parent);
+      if (parentComponent) {
+        // Extract base instance ID (e.g., "child_1" -> "1")
+        const baseInstanceId = instanceId.split("_").pop() ?? "";
+        const parentInstanceId = `${component.parent}_${baseInstanceId}`;
+
+        // Create parent instance if it doesn't exist
+        if (!parentComponent.instances.has(parentInstanceId)) {
+          parentComponent.createInstance(
+            component.parent,
+            parentInstanceId,
+            {},
+          );
+        }
+
+        // Link this instance to parent
+        instanceData.parentInstanceId = parentInstanceId;
+
+        // Update parent instance's child list
+        const parentInstance = parentComponent.instances.get(parentInstanceId);
+        if (parentInstance) {
+          parentInstance.childInstanceIds ??= [];
+          if (!parentInstance.childInstanceIds.includes(instanceId)) {
+            parentInstance.childInstanceIds.push(instanceId);
+          }
         }
       }
+    }
 
-      // Create instances for all descendants
-      const descendants = this.system.getDescendants(this.name);
-      descendants.forEach((descendant) => {
-        const descendantInstanceId = `${descendant.getName()}_${instanceId}`;
-        descendant.createInstance(descendantInstanceId, {}, false);
-      });
+    // Create instances for all child components
+    for (const childId of component.children) {
+      const childComponent = this.system.getComponent(childId);
+      if (childComponent) {
+        // Create child instance with same base ID
+        const baseInstanceId = instanceId.split("_").pop() ?? "";
+        const childInstanceId = `${childId}_${baseInstanceId}`;
+
+        if (!childComponent.instances.has(childInstanceId)) {
+          childComponent.createInstance(childId, childInstanceId, {
+            parentInstanceId: instanceId,
+          });
+        }
+
+        // Update this instance's child list
+        instanceData.childInstanceIds ??= [];
+        if (!instanceData.childInstanceIds.includes(childInstanceId)) {
+          instanceData.childInstanceIds.push(childInstanceId);
+        }
+      }
     }
   }
 
@@ -196,19 +240,22 @@ export class Component {
       let eventsToSend = result.send ?? [];
 
       // Propagate to parent by default unless explicitly prevented by an empty send array
-      if (this.parent && result.send === undefined) {
+      if (
+        this.parent &&
+        result.send === undefined &&
+        this.shouldPropagateToParent(event)
+      ) {
         const parentComponent = this.getParent();
         if (parentComponent) {
-          // Extract the base instance ID (remove the current component's prefix)
-          const baseInstanceId = instanceId.replace(`${this.name}_`, "");
-          // Create the parent instance ID
-          const parentInstanceId = `${this.parent}_${baseInstanceId}`;
-          const parentResult = await parentComponent.processEvent(
-            parentInstanceId,
-            event,
-            data,
-          );
-          eventsToSend = [...eventsToSend, ...parentResult];
+          const parentInstanceId = instance.parentInstanceId;
+          if (parentInstanceId) {
+            const parentResult = await parentComponent.processEvent(
+              parentInstanceId,
+              event,
+              data,
+            );
+            eventsToSend = [...eventsToSend, ...parentResult];
+          }
         }
       }
 
@@ -241,6 +288,14 @@ export class Component {
   // Add method to get all registered event names
   getRegisteredEventNames(): EventName[] {
     return Array.from(this.eventHandlers.keys());
+  }
+
+  getInstanceCount(): number {
+    return this.instances.size;
+  }
+
+  getInstanceIds(): InstanceId[] {
+    return Array.from(this.instances.keys());
   }
 }
 
@@ -423,6 +478,25 @@ export class System {
 
   getComponents(): Component[] {
     return Array.from(this.components.values());
+  }
+
+  broadcastEvent(
+    componentName: ComponentName,
+    event: EventName,
+    data: EventData,
+  ): void {
+    const component = this.getComponent(componentName);
+    if (!component) {
+      throw new Error(`Component ${componentName} not found`);
+    }
+
+    // Get all instance IDs for this component
+    const instanceIds = component.getInstanceIds();
+
+    // Queue the event for each instance
+    for (const instanceId of instanceIds) {
+      this.queueEvent(componentName, instanceId, event, data);
+    }
   }
 }
 
