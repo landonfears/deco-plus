@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, type FC, useState, useMemo } from "react";
+import {
+  useCallback,
+  useEffect,
+  type FC,
+  useState,
+  useMemo,
+  Fragment,
+} from "react";
 import ReactFlow, {
   type Node,
   type Edge,
@@ -36,10 +43,13 @@ import {
   hasCircularEventRelationship,
   // calculateFilteredPosition,
   // hasCircularEventRelationship,
+  getHierarchicalComponents,
+  type HierarchicalComponent,
 } from "~/lib/visualizer-utils";
 import { nodeTypes } from "~/components/visualizer/component-node";
 import { edgeTypes } from "~/components/visualizer/custom-edge";
 import { FitNodes } from "~/components/visualizer/fit-nodes";
+import { ChevronRightIcon, CornerDownRightIcon } from "lucide-react";
 
 export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
   systemData,
@@ -51,16 +61,30 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
     filterComponent,
   );
   // useFitNodes({ filteredComponent, nodes });
-  // Get all unique component names for the filter dropdown
-  const componentNames = useMemo(() => {
-    const names = new Set<string>();
-    systemData.components.forEach((component) => {
-      names.add(component.name);
-    });
-    return Array.from(names).sort();
+
+  // Get hierarchical components for the filter dropdown
+  const hierarchicalComponents = useMemo(() => {
+    return getHierarchicalComponents(systemData.components);
   }, [systemData.components]);
 
-  console.log("component names", componentNames);
+  // Render hierarchical select items
+  const renderHierarchicalItems = (components: HierarchicalComponent[]) => {
+    return components.map((component) => (
+      <Fragment key={component.name}>
+        <SelectItem value={component.name}>
+          <div className="flex items-center gap-1">
+            <div style={{ paddingLeft: `${(component.level - 1) * 10}px` }} />
+            {component.level > 0 ? (
+              <ChevronRightIcon className="h-4 w-4" />
+            ) : null}
+            <p>{component.name}</p>
+          </div>
+        </SelectItem>
+        {component.children.length > 0 &&
+          renderHierarchicalItems(component.children)}
+      </Fragment>
+    ));
+  };
 
   // Update buildComponentNodes to handle event edges
   const buildComponentNodes = useCallback(() => {
@@ -376,15 +400,12 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
           }
         >
           <SelectTrigger className="w-[180px]" data-testid="component-filter">
-            <SelectValue placeholder="All Components" />
+            <SelectValue>{filteredComponent ?? "All Components"}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Components</SelectItem>
-            {componentNames.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
+            {hierarchicalComponents &&
+              renderHierarchicalItems(hierarchicalComponents)}
           </SelectContent>
         </Select>
       </div>
@@ -419,13 +440,5 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
         </ReactFlowProvider>
       </div>
     </div>
-  );
-};
-
-export const SystemVisualizerWithProvider = (props: SystemVisualizerProps) => {
-  return (
-    <ReactFlowProvider>
-      <SystemComponentVisualizer {...props} />
-    </ReactFlowProvider>
   );
 };

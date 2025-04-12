@@ -6,7 +6,7 @@ import { SystemInstanceVisualizer } from "./SystemInstanceVisualizer";
 export const SystemVisualizerWithProvider = (props: SystemVisualizerProps) => {
   return (
     <ReactFlowProvider>
-      <SystemInstanceVisualizer {...props} />
+      <SystemComponentVisualizer {...props} />
     </ReactFlowProvider>
   );
 };

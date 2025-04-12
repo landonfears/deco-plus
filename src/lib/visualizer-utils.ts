@@ -469,3 +469,33 @@ export const showOrHideStyle = (show: boolean) => {
     ...(show ? {} : { background: "transparent", border: 0 }),
   };
 };
+
+export interface HierarchicalComponent {
+  name: string;
+  children: HierarchicalComponent[];
+  level: number;
+}
+
+export function getHierarchicalComponents(
+  components: SystemComponent[],
+): HierarchicalComponent[] {
+  const rootComponents = components.filter((c) => !c.parent);
+  const result: HierarchicalComponent[] = [];
+
+  function buildHierarchy(
+    component: SystemComponent,
+    level: number,
+  ): HierarchicalComponent {
+    const children = components
+      .filter((c) => c.parent === component.name)
+      .map((child) => buildHierarchy(child, level + 1));
+
+    return {
+      name: component.name,
+      children,
+      level,
+    };
+  }
+
+  return rootComponents.map((component) => buildHierarchy(component, 0));
+}
