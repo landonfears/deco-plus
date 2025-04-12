@@ -7,18 +7,22 @@ export interface EventRelationship {
   name: string;
 }
 
+export interface InstanceVisualizerData {
+  id: string;
+  data: Record<string, unknown>;
+  childInstanceIds?: string[];
+  parentInstanceId?: string;
+}
+
+export interface ComponentVisualizerData {
+  name: string;
+  parent: string | undefined;
+  children: string[];
+  instances: InstanceVisualizerData[];
+}
+
 export interface SystemVisualizerData {
-  components: Array<{
-    name: string;
-    parent: string | undefined;
-    children: string[];
-    instances: Array<{
-      id: string;
-      data: Record<string, unknown>;
-      childInstanceIds?: string[];
-      parentInstanceId?: string;
-    }>;
-  }>;
+  components: ComponentVisualizerData[];
   events?: EventRelationship[];
 }
 

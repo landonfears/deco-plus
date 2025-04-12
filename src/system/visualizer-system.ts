@@ -83,6 +83,8 @@ grandchild.createInstance("grandchild", "grandchild_3", {
 
 // Set up system event handling with explicit instance targeting
 const systemComponent = system.getComponent("system");
+systemComponent?.createInstance("system", "system_1", {});
+
 if (systemComponent) {
   systemComponent.on("INITIALIZED_SYSTEM", async (instanceId) => {
     console.log(`System instance ${instanceId} initialized`);

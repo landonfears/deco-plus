@@ -1,5 +1,7 @@
 import type {
+  ComponentVisualizerData,
   EventRelationship,
+  InstanceVisualizerData,
   SystemVisualizerData,
 } from "~/system/visualizer";
 import type { System, Component } from "../system/core-system";
@@ -274,9 +276,9 @@ export const calculateContainerDimensions = (
   childPositions: Map<string, { x: number; y: number }>;
 } => {
   // Find all immediate children
-  const children = systemData.components.filter(
-    (c) => c.parent === componentName,
-  );
+  const children: ComponentVisualizerData[] | InstanceVisualizerData[] =
+    systemData.components.filter((c) => c.parent === componentName);
+
   if (!children.length) {
     return {
       width: NODE_MIN_WIDTH,
