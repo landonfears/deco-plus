@@ -29,6 +29,11 @@ import {
 } from "./ui/select";
 import {
   TOP_MARGIN,
+  NODES_PER_ROW,
+  DEFAULT_WIDTH,
+  DEFAULT_HEIGHT,
+  NODE_PADDING,
+  PARENT_CHILD_PADDING,
   // type ComponentCounts,
   type NodeBounds,
   type HandleConnections,
@@ -45,11 +50,21 @@ import {
   // hasCircularEventRelationship,
   getHierarchicalComponents,
   type HierarchicalComponent,
+  buildInstanceLabel,
+  getComponentByInstanceId,
+  getInstanceById,
+  NODE_MIN_WIDTH,
+  NODE_MIN_HEIGHT,
+  type NodeShiftedVertical,
 } from "~/lib/visualizer-utils";
 import { nodeTypes } from "~/components/visualizer/component-node";
 import { edgeTypes } from "~/components/visualizer/custom-edge";
 import { FitNodes } from "~/components/visualizer/fit-nodes";
 import { ChevronRightIcon, CornerDownRightIcon } from "lucide-react";
+import type {
+  ComponentVisualizerData,
+  InstanceVisualizerData,
+} from "~/system/visualizer";
 
 export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
   systemData,
@@ -93,294 +108,517 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
     const visited = new Set<string>();
     const handleConnections = new Map<string, HandleConnections>();
     const nodeDimensions = new Map<string, NodeBounds>();
+    const nodeShiftedMaxY = new Map<string, number[]>();
+    // Constants for layout
 
     // Helper function to check if a component should be included
     const shouldIncludeComponent = (componentName: string): boolean => {
       if (!filteredComponent) return true;
-
-      // Include the filtered component
-      if (componentName === filteredComponent) return true;
-
-      // Include the parent of the filtered component
-      const filteredNode = systemData.components.find(
-        (c) => c.name === filteredComponent,
-      );
-      if (filteredNode?.parent === componentName) return true;
-
-      // Include all descendants of the filtered component
-      const isDescendant = (current: string, ancestor: string): boolean => {
-        if (current === ancestor) return true;
-        const node = systemData.components.find((c) => c.name === current);
-        if (!node?.parent) return false;
-        return isDescendant(node.parent, ancestor);
-      };
-
-      if (isDescendant(componentName, filteredComponent)) return true;
-
-      // Include all ancestors of the filtered component
-      const isAncestor = (current: string, descendant: string): boolean => {
-        return isDescendant(descendant, current);
-      };
-
-      if (isAncestor(componentName, filteredComponent)) return true;
-
-      return false;
+      return componentName === filteredComponent;
     };
 
     // Initialize handle connections for all nodes
     systemData.components.forEach((component) => {
       if (shouldIncludeComponent(component.name)) {
-        handleConnections.set(component.name, {
-          sourceHandles: [],
-          targetHandles: [],
+        // For each instance of the component
+        component.instances.forEach((instance) => {
+          const instanceId = `${component.name}_${instance.id}`;
+          handleConnections.set(instanceId, {
+            sourceHandles: [],
+            targetHandles: [],
+          });
         });
       }
     });
 
     // Function to get or calculate node bounds
-    const getNodeBounds = (componentName: string): NodeBounds => {
-      if (!nodeDimensions.has(componentName)) {
-        const { width, height } = calculateContainerDimensions(
-          componentName,
-          systemData,
-        );
+    const shiftNodePosition = (
+      instanceId: string,
+      shift: { x: number; y: number },
+    ) => {
+      const instanceLabel = buildInstanceLabel(
+        getComponentByInstanceId(systemData, instanceId)!,
+        instanceId,
+      );
+      const instanceBounds = nodeDimensions.get(instanceLabel);
 
-        // Find the component and its parent
+      if (instanceBounds) {
+        nodeDimensions.set(instanceLabel, {
+          ...instanceBounds,
+          x: instanceBounds.x + shift.x,
+          y: instanceBounds.y + shift.y,
+        });
+      }
+    };
+
+    // Function to get or calculate node bounds
+    const shiftNodeVerticalPosition = (instanceId: string) => {
+      const instance = getInstanceById(systemData, instanceId);
+      if (!instance?.siblingInstanceIds?.length) return;
+      const siblingIndex = instance?.siblingIndex ?? 0;
+
+      // Calculate which row this instance is on
+      const rowNumber = Math.floor(siblingIndex / NODES_PER_ROW);
+
+      let totalHeight = 0;
+      for (let i = 0; i < rowNumber; i += 1) {
+        let maxHeight = 0;
+        for (let j = 0; j < NODES_PER_ROW; j += 1) {
+          const siblingId =
+            instance?.siblingInstanceIds?.[i * NODES_PER_ROW + j];
+          if (siblingId) {
+            const siblingLabel = buildInstanceLabel(
+              getComponentByInstanceId(systemData, siblingId)!,
+              siblingId,
+            );
+            const siblingBounds = nodeDimensions.get(siblingLabel);
+            if (siblingBounds) {
+              maxHeight = Math.max(maxHeight, siblingBounds.height);
+            }
+          }
+        }
+        totalHeight += maxHeight;
+      }
+      totalHeight += NODE_PADDING * rowNumber;
+      if (instance.parentInstanceId) {
+        totalHeight += TOP_MARGIN;
+      }
+
+      const instanceLabel = buildInstanceLabel(
+        getComponentByInstanceId(systemData, instanceId)!,
+        instanceId,
+      );
+      const instanceBounds = nodeDimensions.get(instanceLabel);
+
+      if (instanceBounds) {
+        nodeDimensions.set(instanceLabel, {
+          ...instanceBounds,
+          y: totalHeight,
+        });
+      }
+    };
+
+    const accomodateChildren = (instance: InstanceVisualizerData) => {
+      // Increase parent width and height to accomodate new child, as well as shift siblings to the right and below
+
+      if (instance.parentInstanceId) {
+        const parentInstance = getInstanceById(
+          systemData,
+          instance.parentInstanceId,
+        );
+        if (parentInstance) {
+          const totalRows = parentInstance?.childInstanceIds?.length
+            ? Math.ceil(parentInstance.childInstanceIds.length / NODES_PER_ROW)
+            : 0;
+          let maxWidth = 0;
+          let totalHeight = 0;
+          for (let i = 0; i < totalRows; i += 1) {
+            let rowWidth = 0;
+            let maxHeight = 0;
+            for (let j = 0; j < NODES_PER_ROW; j += 1) {
+              const childId =
+                parentInstance.childInstanceIds?.[i * NODES_PER_ROW + j];
+              if (childId) {
+                const childLabel = buildInstanceLabel(
+                  getComponentByInstanceId(systemData, childId)!,
+                  childId,
+                );
+                const childBounds = nodeDimensions.get(childLabel);
+                if (childBounds) {
+                  rowWidth += childBounds.width + NODE_PADDING;
+                  maxHeight = Math.max(maxHeight, childBounds.height);
+                }
+              }
+            }
+            totalHeight += maxHeight;
+            maxWidth = Math.max(maxWidth, rowWidth);
+            // y += maxHeight + NODE_PADDING;
+          }
+          const parentLabel = buildInstanceLabel(
+            getComponentByInstanceId(systemData, parentInstance.id)!,
+            parentInstance.id,
+          );
+          const parentBounds = nodeDimensions.get(parentLabel);
+
+          if (parentBounds) {
+            const newWidth = maxWidth + NODE_PADDING;
+            const widthDiff = newWidth - parentBounds.width;
+            const newHeight =
+              totalHeight + TOP_MARGIN + NODE_PADDING * totalRows;
+            nodeDimensions.set(parentLabel, {
+              ...parentBounds,
+              width: newWidth,
+              height: newHeight,
+            });
+
+            // shift all siblings on the same row to the right
+            // and all siblings on the next row down
+            parentInstance.siblingInstanceIds?.forEach((siblingId) => {
+              const siblingInstance = getInstanceById(systemData, siblingId);
+
+              if (siblingInstance?.siblingIndex !== undefined) {
+                const isSameRow =
+                  Math.floor(parentInstance.siblingIndex! / NODES_PER_ROW) ===
+                  Math.floor(siblingInstance.siblingIndex / NODES_PER_ROW);
+                if (
+                  siblingInstance?.siblingIndex > parentInstance.siblingIndex!
+                ) {
+                  if (isSameRow) {
+                    shiftNodePosition(siblingId, { x: widthDiff, y: 0 });
+                  } else {
+                    shiftNodeVerticalPosition(siblingId);
+                  }
+                }
+              }
+            });
+          }
+          accomodateChildren(parentInstance);
+        }
+      }
+    };
+    const getNodeBoundsAlt = (
+      component: ComponentVisualizerData,
+      instance: InstanceVisualizerData,
+    ): NodeBounds => {
+      const instanceLabel = buildInstanceLabel(component.name, instance.id);
+
+      // get position
+      const parentBounds = nodeDimensions.get(
+        buildInstanceLabel(
+          getComponentByInstanceId(systemData, instance.parentInstanceId!)!,
+          instance.parentInstanceId!,
+        ),
+      );
+      let x = parentBounds?.x !== undefined ? NODE_PADDING : 0;
+      let y = parentBounds?.y !== undefined ? TOP_MARGIN : 0;
+
+      if (
+        instance.siblingInstanceIds?.length &&
+        instance.siblingIndex !== undefined
+      ) {
+        // Compute x position
+        const startIndex =
+          Math.floor(instance.siblingIndex / NODES_PER_ROW) * NODES_PER_ROW;
+
+        for (let i = startIndex; i < instance.siblingIndex; i += 1) {
+          const siblingId = instance.siblingInstanceIds?.[i];
+
+          if (siblingId) {
+            const siblingBounds = nodeDimensions.get(
+              buildInstanceLabel(
+                getComponentByInstanceId(systemData, siblingId)!,
+                siblingId,
+              ),
+            );
+            if (siblingBounds) {
+              x += siblingBounds.width + NODE_PADDING;
+            }
+          }
+        }
+        // Compute y position
+        const endIndex = Math.floor(instance.siblingIndex / NODES_PER_ROW);
+        for (let i = 0; i < endIndex; i += 1) {
+          let maxHeight = 0;
+          for (let j = 0; j < NODES_PER_ROW; j += 1) {
+            const siblingId =
+              instance.siblingInstanceIds?.[i * NODES_PER_ROW + j];
+            if (siblingId) {
+              const siblingBounds = nodeDimensions.get(
+                buildInstanceLabel(
+                  getComponentByInstanceId(systemData, siblingId)!,
+                  siblingId,
+                ),
+              );
+              if (siblingBounds) {
+                maxHeight = Math.max(maxHeight, siblingBounds.height);
+              }
+            }
+          }
+          y += maxHeight + NODE_PADDING;
+        }
+      }
+
+      // Get all siblings of the parent
+      nodeDimensions.set(instanceLabel, {
+        x,
+        y,
+        width: NODE_MIN_WIDTH,
+        height: NODE_MIN_HEIGHT,
+      });
+      accomodateChildren(instance);
+
+      const bounds = nodeDimensions.get(instanceLabel);
+      return bounds!;
+    };
+    const getNodeBounds = (fullInstanceId: string): NodeBounds => {
+      if (!nodeDimensions.has(fullInstanceId)) {
+        const [componentName, instanceId] = fullInstanceId.split("_");
+        if (!componentName || !instanceId) {
+          return { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
+        }
+
         const component = systemData.components.find(
           (c) => c.name === componentName,
         );
-        let position;
+        const instance = component?.instances.find((i) => i.id === instanceId);
 
-        if (component?.parent) {
-          // For child nodes, get parent's bounds and add child's relative position
-          const parentBounds = getNodeBounds(component.parent);
-          const { childPositions } = calculateContainerDimensions(
-            component.parent,
-            systemData,
-          );
-          const relativePos = childPositions.get(componentName) ?? {
-            x: 0,
-            y: TOP_MARGIN,
-          };
-
-          position = {
-            x: parentBounds.x + relativePos.x,
-            y: parentBounds.y + relativePos.y,
-          };
-        } else {
-          // For root nodes, use the normal position calculation
-          position = calculatePositionForRoot(componentName, systemData);
+        if (!component || !instance) {
+          return { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
         }
 
-        nodeDimensions.set(componentName, {
+        // Get child instances
+        const childInstances = (instance.childInstanceIds ?? [])
+          .map((childId) => {
+            const childComponent = systemData.components.find((c) =>
+              c.instances.some((i) => i.id === childId),
+            );
+            return childComponent ? `${childComponent.name}_${childId}` : null;
+          })
+          .filter((id): id is string => id !== null);
+
+        // Calculate dimensions based on children
+        let width = DEFAULT_WIDTH;
+        let height = DEFAULT_HEIGHT;
+
+        if (childInstances.length > 0) {
+          // Calculate how many rows and columns we need
+          const numChildren = childInstances.length;
+          const numCols = Math.min(NODES_PER_ROW, numChildren);
+          const numRows = Math.ceil(numChildren / NODES_PER_ROW);
+
+          // Width is based on actual number of columns needed
+          width = numCols * DEFAULT_WIDTH + (numCols + 1) * NODE_PADDING;
+
+          // Height is based on number of rows, with padding
+          height =
+            numRows * DEFAULT_HEIGHT +
+            (numRows + 1) * NODE_PADDING +
+            PARENT_CHILD_PADDING;
+        }
+
+        // Calculate position
+        let position = { x: 0, y: 0 };
+
+        if (instance.parentInstanceId) {
+          // For child nodes, position relative to parent
+          const parentComponent = systemData.components.find((c) =>
+            c.instances.some((i) => i.id === instance.parentInstanceId),
+          );
+
+          if (parentComponent) {
+            const parentId = `${parentComponent.name}_${instance.parentInstanceId}`;
+            const parentBounds = getNodeBounds(parentId);
+
+            // Find all siblings that share the same parent
+            const siblings = systemData.components.flatMap((c) =>
+              c.instances
+                .filter((i) => i.parentInstanceId === instance.parentInstanceId)
+                .map((i) => `${c.name}_${i.id}`),
+            );
+
+            const siblingIndex = siblings.indexOf(fullInstanceId);
+            const row = Math.floor(siblingIndex / NODES_PER_ROW);
+            const col = siblingIndex % NODES_PER_ROW;
+
+            // Position relative to parent with padding
+            position = {
+              x:
+                parentBounds.x +
+                NODE_PADDING +
+                col * (DEFAULT_WIDTH + NODE_PADDING),
+              y:
+                parentBounds.y +
+                PARENT_CHILD_PADDING +
+                row * (DEFAULT_HEIGHT + NODE_PADDING) +
+                NODE_PADDING,
+            };
+          }
+        } else {
+          // For root nodes, position based on index
+          const rootInstances = systemData.components.flatMap((c) =>
+            c.instances
+              .filter((i) => !i.parentInstanceId)
+              .map((i) => `${c.name}_${i.id}`),
+          );
+
+          const rootIndex = rootInstances.indexOf(fullInstanceId);
+          const row = Math.floor(rootIndex / NODES_PER_ROW);
+          const col = rootIndex % NODES_PER_ROW;
+
+          position = {
+            x: col * (DEFAULT_WIDTH + NODE_PADDING),
+            y: row * (DEFAULT_HEIGHT + NODE_PADDING),
+          };
+        }
+
+        nodeDimensions.set(fullInstanceId, {
           x: position.x,
           y: position.y,
           width,
           height,
         });
       }
-      return nodeDimensions.get(componentName)!;
+      return nodeDimensions.get(fullInstanceId)!;
     };
 
-    // Create edges for events before building nodes
+    // Create edges for events between instances
     const processedEventPairs = new Set<string>();
 
-    systemData.events?.forEach((event) => {
-      // Skip if either component is not included in the filtered view
-      if (
-        !shouldIncludeComponent(event.from) ||
-        !shouldIncludeComponent(event.to)
-      )
-        return;
+    // systemData.events?.forEach((event) => {
+    //   const fromComponent = systemData.components.find(
+    //     (c) => c.name === event.from,
+    //   );
+    //   const toComponent = systemData.components.find(
+    //     (c) => c.name === event.to,
+    //   );
 
-      const eventPairKey = `${event.from}-${event.to}`;
-      if (processedEventPairs.has(eventPairKey)) return;
+    //   if (!fromComponent || !toComponent) return;
 
-      // Skip if it's a self-connection or creates a circular event path
-      if (
-        event.from === event.to ||
-        hasCircularEventRelationship(
-          event.from,
-          event.to,
-          systemData.events ?? [],
-        )
-      ) {
-        return;
-      }
+    //   // Create edges between all instances of the components
+    //   fromComponent.instances.forEach((fromInstance) => {
+    //     toComponent.instances.forEach((toInstance) => {
+    //       const fromInstanceId = `${event.from}_${fromInstance.id}`;
+    //       const toInstanceId = `${event.to}_${toInstance.id}`;
 
-      // Get node bounds
-      const sourceBounds = getNodeBounds(event.from);
-      const targetBounds = getNodeBounds(event.to);
+    //       if (
+    //         !shouldIncludeComponent(event.from) ||
+    //         !shouldIncludeComponent(event.to)
+    //       )
+    //         return;
 
-      // Calculate positions based on the nodes' expected positions
-      const fromPos = { x: sourceBounds.x, y: sourceBounds.y };
-      const toPos = { x: targetBounds.x, y: targetBounds.y };
+    //       const eventPairKey = `${fromInstanceId}-${toInstanceId}`;
+    //       if (processedEventPairs.has(eventPairKey)) return;
 
-      // Determine optimal handles
-      const { sourceHandle, targetHandle } = determineHandlePositions(
-        fromPos,
-        toPos,
-        sourceBounds,
-        targetBounds,
-      );
+    //       if (
+    //         fromInstanceId === toInstanceId ||
+    //         hasCircularEventRelationship(
+    //           fromInstanceId,
+    //           toInstanceId,
+    //           systemData.events ?? [],
+    //         )
+    //       ) {
+    //         return;
+    //       }
 
-      // Update handle connections
-      const sourceConn = handleConnections.get(event.from);
-      const targetConn = handleConnections.get(event.to);
+    //       const sourceBounds = getNodeBounds(fromInstanceId);
+    //       const targetBounds = getNodeBounds(toInstanceId);
 
-      if (sourceConn && !sourceConn.sourceHandles.includes(sourceHandle)) {
-        sourceConn.sourceHandles.push(sourceHandle);
-      }
-      if (targetConn && !targetConn.targetHandles.includes(targetHandle)) {
-        targetConn.targetHandles.push(targetHandle);
-      }
+    //       const fromPos = { x: sourceBounds.x, y: sourceBounds.y };
+    //       const toPos = { x: targetBounds.x, y: targetBounds.y };
 
-      // Create the edge with appropriate styling
-      newEdges.push({
-        id: `${event.from}-${event.to}-${event.name}`,
-        source: event.from,
-        target: event.to,
-        type: "custom",
-        sourceHandle,
-        targetHandle,
-        data: {
-          testid: `edge-${event.from}-${event.to}-${event.name}`,
-          eventName: event.name,
-          label: event.name,
-        },
-        style: {
-          stroke: "#be185d",
-          strokeWidth: 3,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 24,
-          height: 24,
-          color: "#be185d",
-        },
-        zIndex: 1000,
-      });
+    //       const { sourceHandle, targetHandle } = determineHandlePositions(
+    //         fromPos,
+    //         toPos,
+    //         sourceBounds,
+    //         targetBounds,
+    //       );
 
-      processedEventPairs.add(eventPairKey);
-    });
+    //       const sourceConn = handleConnections.get(fromInstanceId);
+    //       const targetConn = handleConnections.get(toInstanceId);
 
-    const buildNode = (
-      componentName: string,
-      parentId?: string,
-      level = 0,
-      horizontalPosition = 0,
-      parentChildPositions?: Map<string, { x: number; y: number }>,
-    ) => {
-      if (visited.has(componentName) || !shouldIncludeComponent(componentName))
-        return;
-      visited.add(componentName);
+    //       if (sourceConn && !sourceConn.sourceHandles.includes(sourceHandle)) {
+    //         sourceConn.sourceHandles.push(sourceHandle);
+    //       }
+    //       if (targetConn && !targetConn.targetHandles.includes(targetHandle)) {
+    //         targetConn.targetHandles.push(targetHandle);
+    //       }
 
-      const component = systemData.components.find(
-        (c) => c.name === componentName,
-      );
-      if (!component) {
-        console.warn(`Component ${componentName} not found in system data`);
-        return;
-      }
+    //       newEdges.push({
+    //         id: `${fromInstanceId}-${toInstanceId}-${event.name}`,
+    //         source: fromInstanceId,
+    //         target: toInstanceId,
+    //         type: "custom",
+    //         sourceHandle,
+    //         targetHandle,
+    //         data: {
+    //           testid: `edge-${fromInstanceId}-${toInstanceId}-${event.name}`,
+    //           eventName: event.name,
+    //           label: event.name,
+    //         },
+    //         style: {
+    //           stroke: "#be185d",
+    //           strokeWidth: 3,
+    //         },
+    //         markerEnd: {
+    //           type: MarkerType.ArrowClosed,
+    //           width: 24,
+    //           height: 24,
+    //           color: "#be185d",
+    //         },
+    //         zIndex: 1000,
+    //       });
 
-      const nodeId = componentName;
-      const { width, height, childPositions } = calculateContainerDimensions(
-        componentName,
-        systemData,
-      );
+    //       processedEventPairs.add(eventPairKey);
+    //     });
+    //   });
+    // });
 
-      const position = parentId
-        ? (parentChildPositions?.get(componentName) ?? { x: 0, y: TOP_MARGIN })
-        : calculatePositionForRoot(
-            componentName,
-            systemData,
-            // filteredComponent,
-          );
-
-      // Check if any components have this node as their parent
-      const hasChildren = systemData.components.some(
-        (c) => c.parent === componentName,
-      );
-
-      // Add the node
-      newNodes.push({
-        id: nodeId,
-        type: "default",
-        data: {
-          label: componentName,
-          hasChildren,
-          sourceHandles:
-            handleConnections.get(componentName)?.sourceHandles ?? [],
-          targetHandles:
-            handleConnections.get(componentName)?.targetHandles ?? [],
-        },
-        position,
-        draggable: parentId ? false : true,
-        parentNode: parentId,
-        expandParent: false,
-        style: {
-          width,
-          height,
-          padding: 16,
-          borderRadius: 4,
-          zIndex: 0,
-          border: "1px solid #999999",
-        },
-      });
-
-      // Process children
-      component.children.forEach((childName) => {
-        buildNode(
-          childName,
-          nodeId,
-          level + 1,
-          horizontalPosition,
-          childPositions,
-        );
-      });
-    };
-
-    // Build all components, starting with root components
-    let rootIndex = 0;
+    // Build nodes for instances
+    let c = 0;
     systemData.components.forEach((component) => {
-      if (!component.parent && shouldIncludeComponent(component.name)) {
-        const { childPositions } = calculateContainerDimensions(
-          component.name,
-          systemData,
-        );
-        buildNode(component.name, undefined, 0, rootIndex, childPositions);
-        rootIndex++;
+      if (shouldIncludeComponent(component.name)) {
+        component.instances.forEach((instance) => {
+          c += 1;
+          // if (c > 15) return;
+          if (!instance.id) return;
+
+          const instanceId = `${component.name}_${instance.id}`;
+          const bounds = getNodeBoundsAlt(component, instance);
+
+          // Find the parent component and create the full parent instance ID
+          let parentNode: string | undefined;
+          if (instance.parentInstanceId) {
+            const parentComponent = systemData.components.find((c) =>
+              c.instances.some((i) => i.id === instance.parentInstanceId),
+            );
+            if (parentComponent) {
+              parentNode = `${parentComponent.name}_${instance.parentInstanceId}`;
+            }
+          }
+
+          newNodes.push({
+            id: instanceId,
+            type: "default",
+            data: {
+              label: `${component.name} (${instance.id})`,
+              hasChildren: (instance.childInstanceIds ?? []).length > 0,
+              sourceHandles:
+                handleConnections.get(instanceId)?.sourceHandles ?? [],
+              targetHandles:
+                handleConnections.get(instanceId)?.targetHandles ?? [],
+              instanceData: instance.data,
+            },
+            position: { x: bounds.x, y: bounds.y },
+            draggable: !instance.parentInstanceId,
+            parentNode,
+            expandParent: false,
+            style: {
+              width: bounds.width,
+              height: bounds.height,
+              padding: 16,
+              borderRadius: 4,
+              zIndex: 0,
+              border: "1px solid #999999",
+            },
+          });
+        });
       }
     });
 
-    // Build any remaining components that weren't reached through the root components
-    systemData.components.forEach((component) => {
-      if (
-        !visited.has(component.name) &&
-        shouldIncludeComponent(component.name)
-      ) {
-        const parentComponent = systemData.components.find(
-          (c) => c.name === component.parent,
-        );
-        if (parentComponent) {
-          const { childPositions } = calculateContainerDimensions(
-            parentComponent.name,
-            systemData,
-          );
-          buildNode(component.name, component.parent, 1, 0, childPositions);
-        }
+    // Hydrate node with dynamic dimensions
+    // for each nodeDimension, find the node in newNodes and update the position and size
+    nodeDimensions.forEach((bounds, instanceId) => {
+      const node = newNodes.find((n) => n.id === instanceId);
+      if (node) {
+        node.position = { x: bounds.x, y: bounds.y };
+        node.style!.width = bounds.width;
+        node.style!.height = bounds.height;
       }
     });
 
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [
-    systemData.components,
-    systemData.events,
-    setNodes,
-    setEdges,
-    filteredComponent,
-  ]);
+  }, [systemData, setNodes, setEdges, filteredComponent]);
 
   // Initialize the visualization when the component mounts
   useEffect(() => {

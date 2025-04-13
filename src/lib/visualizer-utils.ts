@@ -17,6 +17,10 @@ export const ROW_MARGIN = 30; // Space between rows
 export const LEVEL_HEIGHT = 200;
 export const HORIZONTAL_SPACING = 200;
 export const VERTICAL_SPACING = 100;
+export const DEFAULT_WIDTH = 200;
+export const DEFAULT_HEIGHT = 100;
+export const NODE_PADDING = 20;
+export const PARENT_CHILD_PADDING = 40;
 
 export interface SystemComponent {
   name: string;
@@ -34,6 +38,11 @@ export interface NodeBounds {
   y: number;
   width: number;
   height: number;
+}
+
+export interface NodeShiftedVertical {
+  min: number;
+  max: number;
 }
 
 export interface HandleConnections {
@@ -499,3 +508,40 @@ export function getHierarchicalComponents(
 
   return rootComponents.map((component) => buildHierarchy(component, 0));
 }
+
+export const getComponentByInstanceId = (
+  systemData: SystemVisualizerData,
+  instanceId: string,
+) => {
+  for (const component of systemData.components) {
+    const foundInstance = component.instances.find(
+      (instance) => instance.id === instanceId,
+    );
+    if (foundInstance) {
+      return component.name;
+    }
+  }
+  return undefined;
+};
+
+export const getInstanceById = (
+  systemData: SystemVisualizerData,
+  instanceId: string,
+) => {
+  for (const component of systemData.components) {
+    const foundInstance = component.instances.find(
+      (instance) => instance.id === instanceId,
+    );
+    if (foundInstance) {
+      return foundInstance;
+    }
+  }
+  return undefined;
+};
+
+export const buildInstanceLabel = (
+  componentName: string,
+  instanceId: string,
+) => {
+  return `${componentName}_${instanceId}`;
+};

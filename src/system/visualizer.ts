@@ -12,6 +12,8 @@ export interface InstanceVisualizerData {
   data: Record<string, unknown>;
   childInstanceIds?: string[];
   parentInstanceId?: string;
+  siblingInstanceIds?: string[];
+  siblingIndex?: number;
 }
 
 export interface ComponentVisualizerData {
@@ -78,6 +80,9 @@ export const getVisualizerSystemData = (
         data: component.getInstance(instanceId) ?? {},
         childInstanceIds: component.getInstance(instanceId)?.childInstanceIds,
         parentInstanceId: component.getInstance(instanceId)?.parentInstanceId,
+        siblingInstanceIds:
+          component.getInstance(instanceId)?.siblingInstanceIds, // IDs of instances that share the same parent (or no parent)
+        siblingIndex: component.getInstance(instanceId)?.siblingIndex,
       })),
     })),
     events,

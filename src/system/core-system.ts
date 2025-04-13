@@ -4,9 +4,11 @@ export type InstanceId = string;
 export type EventName = string;
 
 // Base types for component data and event data
-type ComponentData = Record<string, unknown> & {
+export type ComponentData = Record<string, unknown> & {
   parentInstanceId?: string;
   childInstanceIds?: string[];
+  siblingInstanceIds?: string[]; // IDs of instances that share the same parent (or no parent)
+  siblingIndex?: number; // Order number of the instance among its siblings
 };
 // Event names should follow a past tense verb format to indicate "something happened"
 type EventData = Record<string, unknown>;
@@ -50,6 +52,31 @@ export class Component {
     this.name = name;
     this.dataModel = dataModel;
     this.system = system;
+  }
+
+  // Add method to create instance with order enforcement
+  createInstanceInOrder(
+    instanceId: InstanceId,
+    data: ComponentData = {},
+    COMPONENT_ORDER: readonly ComponentName[] = [],
+  ): void {
+    const currentIndex = COMPONENT_ORDER.indexOf(this.name);
+    if (currentIndex === -1) {
+      throw new Error(`Component ${this.name} not found in COMPONENT_ORDER`);
+    }
+
+    // Check if any instances of later components already exist
+    for (let i = currentIndex + 1; i < COMPONENT_ORDER.length; i++) {
+      const componentName = COMPONENT_ORDER[i]!;
+      const laterComponent = this.system.getComponent(componentName);
+      if (laterComponent && laterComponent.getInstanceCount() > 0) {
+        throw new Error(
+          `Cannot create ${this.name} instance after ${componentName} instances have been created`,
+        );
+      }
+    }
+
+    this.createInstance(this.name, instanceId, data);
   }
 
   // Add getter for name
@@ -119,6 +146,108 @@ export class Component {
     console.log("=====================\n");
   }
 
+  determineSiblingIndex(instanceId: InstanceId, siblings: string[]): number {
+    let index = 0;
+
+    for (const comp of this.system.getComponents()) {
+      for (const [id] of comp.instances.entries()) {
+        if (id === instanceId) {
+          return index;
+        }
+        if (siblings.includes(id)) {
+          index += 1;
+        }
+      }
+    }
+    return siblings.length - 1;
+  }
+
+  setInstanceParent(
+    childInstanceId: InstanceId,
+    parentInstanceId: InstanceId,
+  ): void {
+    // Get the child component and instance
+    const [childComponentName] = childInstanceId.split("_") as [string];
+    const childComponent = this.system.getComponent(childComponentName);
+    if (!childComponent) {
+      throw new Error(`Child component ${childComponentName} not found`);
+    }
+
+    const childInstance = childComponent.getInstance(childInstanceId);
+    if (!childInstance) {
+      throw new Error(`Child instance ${childInstanceId} not found`);
+    }
+
+    // Get the parent component and instance
+    const [parentComponentName] = parentInstanceId.split("_") as [string];
+    const parentComponent = this.system.getComponent(parentComponentName);
+    if (!parentComponent) {
+      throw new Error(`Parent component ${parentComponentName} not found`);
+    }
+
+    const parentInstance = parentComponent.getInstance(parentInstanceId);
+    if (!parentInstance) {
+      throw new Error(`Parent instance ${parentInstanceId} not found`);
+    }
+
+    // Update child's parent reference
+    childInstance.parentInstanceId = parentInstanceId;
+
+    // Update parent's children list
+    parentInstance.childInstanceIds ??= [];
+    if (!parentInstance.childInstanceIds.includes(childInstanceId)) {
+      parentInstance.childInstanceIds.push(childInstanceId);
+    }
+
+    // Clear and rebuild sibling lists
+    childInstance.siblingInstanceIds = [];
+
+    // Update sibling lists for all instances
+    Array.from(this.system.getComponents()).forEach((comp) => {
+      Array.from(comp.instances.entries()).forEach(([id, inst]) => {
+        // Skip self and instances with different parents
+        if (
+          id === childInstanceId ||
+          inst.parentInstanceId !== parentInstanceId
+        ) {
+          // remove childInstanceId if this instance has no parent
+          const fi = inst.siblingInstanceIds?.findIndex(
+            (id) => id !== childInstanceId,
+          );
+          inst.siblingInstanceIds = inst.siblingInstanceIds?.filter(
+            (id) => id !== childInstanceId,
+          );
+          inst.siblingIndex = this.determineSiblingIndex(
+            id,
+            inst.siblingInstanceIds ?? [],
+          );
+          // if (inst.siblingIndex && fi && fi < inst.siblingIndex) {
+          //   inst.siblingIndex -= 1;
+          // }
+          return;
+        }
+
+        // Add to child's siblings
+        childInstance.siblingInstanceIds ??= [];
+        childInstance.siblingInstanceIds.push(id);
+        childInstance.siblingIndex = this.determineSiblingIndex(
+          childInstanceId,
+          childInstance.siblingInstanceIds ?? [],
+        );
+
+        // Add child to sibling's list
+        inst.siblingInstanceIds ??= [];
+        if (!inst.siblingInstanceIds.includes(childInstanceId)) {
+          inst.siblingInstanceIds.push(childInstanceId);
+          inst.siblingIndex = this.determineSiblingIndex(
+            id,
+            inst.siblingInstanceIds ?? [],
+          );
+        }
+      });
+    });
+  }
+
   // Modify createInstance to handle child instances
   createInstance(
     componentId: ComponentName,
@@ -139,58 +268,49 @@ export class Component {
     // Set the instance
     component.instances.set(instanceId, instanceData);
 
-    // If this component has a parent, establish relationship
-    if (component.parent) {
-      const parentComponent = this.system.getComponent(component.parent);
-      if (parentComponent) {
-        // Extract base instance ID (e.g., "child_1" -> "1")
-        const baseInstanceId = instanceId.split("_").pop() ?? "";
-        const parentInstanceId = `${component.parent}_${baseInstanceId}`;
-
-        // Create parent instance if it doesn't exist
-        if (!parentComponent.instances.has(parentInstanceId)) {
-          parentComponent.createInstance(
-            component.parent,
-            parentInstanceId,
-            {},
-          );
+    // Find all instances that share the same parent (or no parent)
+    const siblings = Array.from(this.system.getComponents())
+      .flatMap((comp) => Array.from(comp.instances.entries()))
+      .filter(([id, inst]) => {
+        // Skip the current instance
+        if (id === instanceId) return false;
+        // If this instance has a parent, find siblings with the same parent
+        if (instanceData.parentInstanceId) {
+          return inst.parentInstanceId === instanceData.parentInstanceId;
         }
+        // If this instance has no parent, find other instances with no parent
+        return !inst.parentInstanceId;
+      })
+      .map(([id]) => id);
 
-        // Link this instance to parent
-        instanceData.parentInstanceId = parentInstanceId;
+    // Set siblingInstanceIds and siblingIndex
+    instanceData.siblingInstanceIds = siblings;
+    instanceData.siblingIndex = this.determineSiblingIndex(
+      instanceId,
+      instanceData.siblingInstanceIds ?? [],
+    );
+    console.log(
+      "instanceData",
+      instanceId,
+      instanceData.siblingInstanceIds,
+      instanceData.siblingIndex,
+    );
 
-        // Update parent instance's child list
-        const parentInstance = parentComponent.instances.get(parentInstanceId);
-        if (parentInstance) {
-          parentInstance.childInstanceIds ??= [];
-          if (!parentInstance.childInstanceIds.includes(instanceId)) {
-            parentInstance.childInstanceIds.push(instanceId);
+    // Update sibling lists for all existing siblings
+    siblings.forEach((siblingId) => {
+      const [siblingComponentName] = siblingId.split("_");
+      const siblingComponent = this.system.getComponent(siblingComponentName!);
+      if (siblingComponent) {
+        const siblingInstance = siblingComponent.instances.get(siblingId);
+        if (siblingInstance) {
+          // Add this instance to the sibling's list
+          siblingInstance.siblingInstanceIds ??= [];
+          if (!siblingInstance.siblingInstanceIds.includes(instanceId)) {
+            siblingInstance.siblingInstanceIds.push(instanceId);
           }
         }
       }
-    }
-
-    // Create instances for all child components
-    for (const childId of component.children) {
-      const childComponent = this.system.getComponent(childId);
-      if (childComponent) {
-        // Create child instance with same base ID
-        const baseInstanceId = instanceId.split("_").pop() ?? "";
-        const childInstanceId = `${childId}_${baseInstanceId}`;
-
-        if (!childComponent.instances.has(childInstanceId)) {
-          childComponent.createInstance(childId, childInstanceId, {
-            parentInstanceId: instanceId,
-          });
-        }
-
-        // Update this instance's child list
-        instanceData.childInstanceIds ??= [];
-        if (!instanceData.childInstanceIds.includes(childInstanceId)) {
-          instanceData.childInstanceIds.push(childInstanceId);
-        }
-      }
-    }
+    });
   }
 
   // Get instance data
