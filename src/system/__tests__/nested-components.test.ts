@@ -51,12 +51,17 @@ describe("Nested Components", () => {
   test("Instance Management - should create instances for parent and children", () => {
     const system = new System();
     const parent = system.createComponent("parent", {});
-    const child = system.createComponent("child", {}, "parent");
+    const child = system.createComponent("child", {});
+    child.setParent("parent");
 
-    parent.createInstance("parent", "test", {});
+    const COMPONENT_ORDER = ["parent", "child"] as const;
 
-    const parentInstance = parent.getInstance("test");
-    const childInstance = child.getInstance("child_test");
+    // Parent instances
+    parent.createInstanceInOrder("parent_1", {}, COMPONENT_ORDER);
+    child.createInstanceInOrder("child_1", {}, COMPONENT_ORDER);
+
+    const parentInstance = parent.getInstance("parent_1");
+    const childInstance = child.getInstance("child_1");
 
     expect(parentInstance).toBeDefined();
     expect(childInstance).toBeDefined();
@@ -65,12 +70,19 @@ describe("Nested Components", () => {
   test("Instance Management - should maintain instance hierarchy", () => {
     const system = new System();
     const parent = system.createComponent("parent", {});
-    const child = system.createComponent("child", {}, "parent");
-    const grandchild = system.createComponent("grandchild", {}, "child");
+    const child = system.createComponent("child", {});
+    const grandchild = system.createComponent("grandchild", {});
+    child.setParent("parent");
+    grandchild.setParent("child");
 
-    parent.createInstance("parent", "test", {});
+    const COMPONENT_ORDER = ["parent", "child", "grandchild"] as const;
 
-    const parentInstance = parent.getInstance("test");
+    // Parent instances
+    parent.createInstanceInOrder("parent_test", {}, COMPONENT_ORDER);
+    child.createInstanceInOrder("child_test", {}, COMPONENT_ORDER);
+    grandchild.createInstanceInOrder("grandchild_test", {}, COMPONENT_ORDER);
+
+    const parentInstance = parent.getInstance("parent_test");
     const childInstance = child.getInstance("child_test");
     const grandchildInstance = grandchild.getInstance("grandchild_test");
 
@@ -82,7 +94,18 @@ describe("Nested Components", () => {
   test("Event Propagation - should propagate events from child to parent", async () => {
     const system = new System();
     const parent = system.createComponent("parent", {});
-    const child = system.createComponent("child", {}, "parent");
+    const child = system.createComponent("child", {});
+    const COMPONENT_ORDER = [
+      "system",
+      "parent",
+      "child",
+      "grandchild",
+    ] as const;
+
+    const systemComponent = system.getComponent("system");
+    systemComponent!.createInstanceInOrder("system_test", {}, COMPONENT_ORDER);
+    parent.createInstanceInOrder("parent_test", {}, COMPONENT_ORDER);
+    child.createInstanceInOrder("child_test", {}, COMPONENT_ORDER);
 
     let parentEventReceived = false;
     let childEventReceived = false;
@@ -97,10 +120,25 @@ describe("Nested Components", () => {
       return {};
     });
 
-    parent.createInstance("parent", "test", {});
-    child.createInstance("child", "child_test", {});
+    systemComponent!.on("INITIALIZED_SYSTEM", async (instanceId) => {
+      return {
+        send: [
+          {
+            component: "parent",
+            event: "test",
+            data: { targetInstanceId: "parent_test" },
+          },
+          {
+            component: "child",
+            event: "test",
+            data: { targetInstanceId: "child_test" },
+          },
+        ],
+      };
+    });
 
-    await child.processEvent("child_test", "test", {});
+    system.queueEvent("system", "system_1", "INITIALIZED_SYSTEM", {});
+    await system.processEvents();
 
     expect(childEventReceived).toBe(true);
     expect(parentEventReceived).toBe(true);

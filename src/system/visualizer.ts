@@ -49,14 +49,6 @@ export const getVisualizerSystemData = (
         const handler = sourceComponent.getEventHandler(eventName);
         if (!handler) return;
 
-        // Only process events for instances that actually receive them
-        if (
-          eventName === "STARTED_SYSTEM" &&
-          sourceInstanceId !== "grandchild_1"
-        ) {
-          return;
-        }
-
         // Call the handler with the actual instance ID
         handler(
           sourceInstanceId,
@@ -75,6 +67,25 @@ export const getVisualizerSystemData = (
                 // Get the target instance ID from the event data
                 const targetInstanceId = (sendAction.data?.targetInstanceId ??
                   sourceInstanceId) as string;
+
+                // Only create an event relationship if the target instance exists
+                const targetInstance =
+                  targetComponent.getInstance(targetInstanceId);
+                if (!targetInstance) return;
+
+                // Check if this event relationship already exists
+                const eventKey = `${sourceComponent.getName()}_${sourceInstanceId}-${sendAction.component}_${targetInstanceId}-${sendAction.event}`;
+                if (
+                  events.some(
+                    (e) =>
+                      e.from === sourceComponent.getName() &&
+                      e.to === sendAction.component &&
+                      e.name === sendAction.event &&
+                      e.data?.instanceId === sourceInstanceId &&
+                      e.data?.targetInstanceId === targetInstanceId,
+                  )
+                )
+                  return;
 
                 events.push({
                   from: sourceComponent.getName(),

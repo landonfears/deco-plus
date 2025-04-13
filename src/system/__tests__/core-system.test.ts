@@ -9,6 +9,14 @@ interface PersonData {
   movementMethod: string;
 }
 
+// Add a type that includes the additional ComponentData properties
+type PersonDataWithRelations = PersonData & {
+  parentInstanceId?: string;
+  childInstanceIds?: string[];
+  siblingInstanceIds?: string[];
+  siblingIndex?: number;
+};
+
 interface MovementEventData {
   movementMethod: string;
 }
@@ -63,13 +71,19 @@ describe("Core System", () => {
 
     test("should create instances with initial data", () => {
       person.createInstance("person", "person_1", { name: "Alice", age: 30 });
-      const instance = person.getInstance("person_1") as unknown as PersonData;
+      const instance = person.getInstance(
+        "person_1",
+      ) as unknown as PersonDataWithRelations;
 
       expect(instance).toEqual({
         name: "Alice",
         age: 30,
         isHungry: false,
         movementMethod: "walking",
+        parentInstanceId: undefined,
+        childInstanceIds: undefined,
+        siblingInstanceIds: [],
+        siblingIndex: 0,
       });
     });
 
@@ -100,7 +114,9 @@ describe("Core System", () => {
       system.queueEvent("person", "person_1", "FELT_HUNGER", {});
       await system.processEvents();
 
-      const instance = person.getInstance("person_1") as unknown as PersonData;
+      const instance = person.getInstance(
+        "person_1",
+      ) as unknown as PersonDataWithRelations;
       expect(instance?.isHungry).toBe(true);
     });
 
@@ -137,7 +153,9 @@ describe("Core System", () => {
       system.queueEvent("person", "person_1", "FELT_HUNGER", {});
       await system.processEvents();
 
-      const instance = person.getInstance("person_1") as unknown as PersonData;
+      const instance = person.getInstance(
+        "person_1",
+      ) as unknown as PersonDataWithRelations;
       expect(instance?.movementMethod).toBe("walking");
     });
   });
@@ -199,10 +217,10 @@ describe("Core System", () => {
 
       const person1State = person.getInstance(
         "person_1",
-      ) as unknown as PersonData;
+      ) as unknown as PersonDataWithRelations;
       const person2State = person.getInstance(
         "person_2",
-      ) as unknown as PersonData;
+      ) as unknown as PersonDataWithRelations;
 
       expect(person1State?.movementMethod).toBe("walking");
       expect(person2State?.movementMethod).toBe("wheelchair");
@@ -223,7 +241,9 @@ describe("Core System", () => {
       system.queueEvent("person", "person_1", "AGE_UPDATED", { age: 30 });
       await system.processEvents();
 
-      const instance = person.getInstance("person_1") as unknown as PersonData;
+      const instance = person.getInstance(
+        "person_1",
+      ) as unknown as PersonDataWithRelations;
       expect(instance?.age).toBe(30);
     });
 
@@ -262,12 +282,16 @@ describe("Core System", () => {
 
         const instance = person.getInstance(
           "person_1",
-        ) as unknown as PersonData;
+        ) as unknown as PersonDataWithRelations;
         expect(instance).toEqual({
           name: "Bob",
           age: 30,
           isHungry: false,
           movementMethod: "walking",
+          parentInstanceId: undefined,
+          childInstanceIds: undefined,
+          siblingInstanceIds: [],
+          siblingIndex: 0,
         });
       });
 
@@ -292,16 +316,20 @@ describe("Core System", () => {
 
         const person1State = person.getInstance(
           "person_1",
-        ) as unknown as PersonData;
+        ) as unknown as PersonDataWithRelations;
         const person2State = person.getInstance(
           "person_2",
-        ) as unknown as PersonData;
+        ) as unknown as PersonDataWithRelations;
 
         expect(person1State).toEqual({
           name: "Alice",
           age: 30,
           isHungry: false,
           movementMethod: "walking",
+          parentInstanceId: undefined,
+          childInstanceIds: undefined,
+          siblingInstanceIds: ["person_2"],
+          siblingIndex: 0,
         });
 
         expect(person2State).toEqual({
@@ -309,6 +337,10 @@ describe("Core System", () => {
           age: 35,
           isHungry: false,
           movementMethod: "walking",
+          parentInstanceId: undefined,
+          childInstanceIds: undefined,
+          siblingInstanceIds: ["person_1"],
+          siblingIndex: 1,
         });
       });
 
@@ -316,7 +348,7 @@ describe("Core System", () => {
         person.on("AGE_INCREMENTED", async (instanceId: string) => {
           const instance = person.getInstance(
             instanceId,
-          ) as unknown as PersonData;
+          ) as unknown as PersonDataWithRelations;
           return {
             update: { age: (instance?.age || 0) + 1 },
           };
@@ -332,7 +364,7 @@ describe("Core System", () => {
 
         const instance = person.getInstance(
           "person_1",
-        ) as unknown as PersonData;
+        ) as unknown as PersonDataWithRelations;
         expect(instance?.age).toBe(25);
       });
     });
@@ -443,10 +475,10 @@ describe("Core System", () => {
 
         const person1State = person.getInstance(
           "person_1",
-        ) as unknown as PersonData;
+        ) as unknown as PersonDataWithRelations;
         const person2State = person.getInstance(
           "person_2",
-        ) as unknown as PersonData;
+        ) as unknown as PersonDataWithRelations;
 
         expect(person1State?.age).toBe(30);
         expect(person2State?.age).toBe(35);
@@ -490,12 +522,16 @@ describe("Core System", () => {
         // Verify age is set to undefined when event data is malformed
         const instance = person.getInstance(
           "person_1",
-        ) as unknown as PersonData;
+        ) as unknown as PersonDataWithRelations;
         expect(instance).toEqual({
           name: "Alice",
           age: undefined,
           isHungry: false,
           movementMethod: "walking",
+          parentInstanceId: undefined,
+          childInstanceIds: undefined,
+          siblingInstanceIds: [],
+          siblingIndex: 0,
         });
       });
 
@@ -515,7 +551,7 @@ describe("Core System", () => {
         // Verify new property was added
         const instance = person.getInstance(
           "person_1",
-        ) as unknown as PersonData & { newProperty: string };
+        ) as unknown as PersonDataWithRelations & { newProperty: string };
         expect(instance?.newProperty).toBe("value");
       });
 
@@ -536,12 +572,16 @@ describe("Core System", () => {
         // Verify instance state remains unchanged
         const instance = person.getInstance(
           "person_1",
-        ) as unknown as PersonData;
+        ) as unknown as PersonDataWithRelations;
         expect(instance).toEqual({
           name: "Alice",
           age: 20,
           isHungry: false,
           movementMethod: "walking",
+          parentInstanceId: undefined,
+          childInstanceIds: undefined,
+          siblingInstanceIds: [],
+          siblingIndex: 0,
         });
       });
     });
@@ -565,7 +605,7 @@ describe("Core System", () => {
 
         const instance = person.getInstance(
           "person_1",
-        ) as unknown as PersonData;
+        ) as unknown as PersonDataWithRelations;
         expect(typeof instance.age).toBe("number");
         expect(typeof instance.name).toBe("string");
         expect(typeof instance.isHungry).toBe("boolean");
@@ -594,17 +634,21 @@ describe("Core System", () => {
 
         const instance = person.getInstance(
           "person_1",
-        ) as unknown as PersonData;
+        ) as unknown as PersonDataWithRelations;
         expect(instance).toEqual({
           name: "Bob", // Updated
           age: 25, // Updated
           isHungry: false, // Unchanged
           movementMethod: "walking", // Unchanged
+          parentInstanceId: undefined,
+          childInstanceIds: undefined,
+          siblingInstanceIds: [],
+          siblingIndex: 0,
         });
       });
 
       test("should handle nested state updates", async () => {
-        interface ComplexPersonData extends PersonData {
+        interface ComplexPersonData extends PersonDataWithRelations {
           stats: {
             strength: number;
             speed: number;
@@ -646,7 +690,7 @@ describe("Core System", () => {
       });
 
       test("should handle array state updates", async () => {
-        interface PersonWithItems extends PersonData {
+        interface PersonWithItems extends PersonDataWithRelations {
           items: string[];
         }
 
@@ -884,7 +928,7 @@ describe("Core System", () => {
         // Verify each handled the event differently
         const personState = person.getInstance(
           "person_1",
-        ) as unknown as PersonData;
+        ) as unknown as PersonDataWithRelations;
         const robotState = robot.getInstance("robot_1") as unknown as {
           batteryLevel: number;
           isCharging: boolean;
