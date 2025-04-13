@@ -21,6 +21,8 @@ child2.on("HAD_HICCUPS", async (instanceId, data) => {
 });
 const grandchild = system.createComponent("grandchild", {});
 grandchild.on("STARTED_SYSTEM", async (instanceId, data) => {
+  // Only process if this event is meant for this instance
+
   console.log(
     `Grandchild instance ${instanceId} received STARTED_SYSTEM event`,
   );
@@ -259,15 +261,12 @@ if (systemComponent) {
     console.log(`System instance ${instanceId} initialized`);
     return {
       send: [
-        // {
-        //   component: "parent",
-        //   event: "STARTED_SYSTEM",
-        //   data: { targetInstanceId: "parent_1" },
-        // },
         {
           component: "grandchild",
           event: "STARTED_SYSTEM",
-          data: { targetInstanceId: "grandchild_1" },
+          data: {
+            targetInstanceId: "grandchild_1",
+          },
         },
       ],
     };

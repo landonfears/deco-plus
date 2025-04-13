@@ -86,7 +86,24 @@ export class Component {
 
   // Add methods for parent-child relationships
   setParent(parent: ComponentName): void {
+    // Remove this component from previous parent's children array
+    if (this.parent) {
+      const oldParent = this.system.getComponent(this.parent);
+      if (oldParent) {
+        oldParent.children = oldParent.children.filter(
+          (child) => child !== this.name,
+        );
+      }
+    }
+
+    // Set new parent
     this.parent = parent;
+
+    // Add this component to new parent's children array
+    const parentComponent = this.system.getComponent(parent);
+    if (parentComponent) {
+      parentComponent.addChild(this.name);
+    }
   }
 
   addChild(child: ComponentName): void {
@@ -108,7 +125,13 @@ export class Component {
   // Add shouldPropagateToParent method
   protected shouldPropagateToParent(event: EventName): boolean {
     // List of events that should not propagate to parent
-    const nonPropagatingEvents = ["init", "destroy", "update", "childUpdate"];
+    const nonPropagatingEvents = [
+      "init",
+      "destroy",
+      "update",
+      "childUpdate",
+      "INITIALIZED_SYSTEM",
+    ];
     return !nonPropagatingEvents.includes(event);
   }
 
@@ -288,12 +311,6 @@ export class Component {
     instanceData.siblingIndex = this.determineSiblingIndex(
       instanceId,
       instanceData.siblingInstanceIds ?? [],
-    );
-    console.log(
-      "instanceData",
-      instanceId,
-      instanceData.siblingInstanceIds,
-      instanceData.siblingIndex,
     );
 
     // Update sibling lists for all existing siblings
@@ -572,8 +589,8 @@ export class System {
           for (const newEvent of result.send) {
             const targetComponent = newEvent.component ?? component;
             const targetInstanceId =
-              "instanceId" in newEvent.data
-                ? (newEvent.data.instanceId as string)
+              "targetInstanceId" in newEvent.data
+                ? (newEvent.data.targetInstanceId as string)
                 : instanceId;
             console.log(`[CORE] Queueing new event:`, {
               component: targetComponent,
@@ -633,33 +650,3 @@ export const getSystemEvents = (system: System): EventName[] => {
 
   return Array.from(events);
 };
-
-// // Example usage:
-// const system = new System();
-
-// // Create a person component
-// const person = system.createComponent("person", {
-//   name: "",
-//   age: 0,
-//   isHungry: false,
-// });
-
-// // Register event handlers
-// person.on("FELT_HUNGER", async (instanceId, data, component) => {
-//   const instance = component.getInstance(instanceId);
-//   if (!instance) return {};
-
-//   return {
-//     update: { isHungry: true },
-//     send: [{ event: "STARTED_MOVING", data: { movementMethod: "walking" } }],
-//   };
-// });
-
-// // Create an instance
-// person.createInstance("person_1", { name: "Alice", age: 30 });
-
-// // Queue an event
-// system.queueEvent("person", "person_1", "FELT_HUNGER", {});
-
-// // Process events
-// await system.processEvents();

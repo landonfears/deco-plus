@@ -1,4 +1,9 @@
-import { getSystemEvents, type System, type EventData } from "./core-system";
+import {
+  getSystemEvents,
+  type System,
+  type EventData,
+  type Component,
+} from "./core-system";
 
 export interface EventRelationship {
   from: string;
@@ -32,84 +37,106 @@ export interface SystemVisualizerData {
   events?: EventRelationship[];
 }
 
-export const getVisualizerSystemData = (
+export const getVisualizerSystemData = async (
   system: System,
-): SystemVisualizerData => {
+): Promise<SystemVisualizerData> => {
   const events: EventRelationship[] = [];
   const components = Array.from(system.getComponents());
 
-  // For each component, check its event handlers and their send actions
-  components.forEach((sourceComponent) => {
-    const commonEvents = getSystemEvents(system);
-    const sourceInstances = sourceComponent.getInstanceIds();
+  // Helper function to process event relationships
+  const processEventRelationship = (
+    sourceComponent: Component,
+    sourceInstanceId: string,
+    targetComponent: string,
+    targetInstanceId: string,
+    eventName: string,
+  ) => {
+    // Check if this event relationship already exists
+    const exists = events.some(
+      (e) =>
+        e.from === sourceComponent.getName() &&
+        e.to === targetComponent &&
+        e.name === eventName &&
+        e.data?.instanceId === sourceInstanceId &&
+        e.data?.targetInstanceId === targetInstanceId,
+    );
 
-    // For each instance of the source component
-    sourceInstances.forEach((sourceInstanceId) => {
-      commonEvents.forEach((eventName) => {
-        const handler = sourceComponent.getEventHandler(eventName);
-        if (!handler) return;
-
-        // Call the handler with the actual instance ID
-        handler(
-          sourceInstanceId,
-          { instanceId: sourceInstanceId } as EventData,
-          sourceComponent,
-        )
-          .then((result) => {
-            if (result?.send) {
-              result.send.forEach((sendAction) => {
-                if (!sendAction.component) return;
-                const targetComponent = system.getComponent(
-                  sendAction.component,
-                );
-                if (!targetComponent?.getEventHandler(sendAction.event)) return;
-
-                // Get the target instance ID from the event data
-                const targetInstanceId = (sendAction.data?.targetInstanceId ??
-                  sourceInstanceId) as string;
-
-                // Only create an event relationship if the target instance exists
-                const targetInstance =
-                  targetComponent.getInstance(targetInstanceId);
-                if (!targetInstance) return;
-
-                // Check if this event relationship already exists
-                const eventKey = `${sourceComponent.getName()}_${sourceInstanceId}-${sendAction.component}_${targetInstanceId}-${sendAction.event}`;
-                if (
-                  events.some(
-                    (e) =>
-                      e.from === sourceComponent.getName() &&
-                      e.to === sendAction.component &&
-                      e.name === sendAction.event &&
-                      e.data?.instanceId === sourceInstanceId &&
-                      e.data?.targetInstanceId === targetInstanceId,
-                  )
-                )
-                  return;
-
-                events.push({
-                  from: sourceComponent.getName(),
-                  to: sendAction.component,
-                  type: "event",
-                  name: sendAction.event,
-                  data: {
-                    instanceId: sourceInstanceId,
-                    targetInstanceId: targetInstanceId,
-                  },
-                });
-              });
-            }
-          })
-          .catch(console.error);
+    if (!exists) {
+      events.push({
+        from: sourceComponent.getName(),
+        to: targetComponent,
+        type: "event",
+        name: eventName,
+        data: {
+          instanceId: sourceInstanceId,
+          targetInstanceId: targetInstanceId,
+        },
       });
-    });
-  });
+    }
+  };
 
-  return {
-    components: components.map((component) => ({
+  // Helper function to simulate event handling
+  const simulateEventHandler = async (
+    sourceComponent: Component,
+    sourceInstanceId: string,
+    eventName: string,
+    eventData: EventData,
+  ) => {
+    const handler = sourceComponent.getEventHandler(eventName);
+    if (!handler) return;
+
+    const result = await handler(sourceInstanceId, eventData, sourceComponent);
+    if (result?.send) {
+      for (const sendAction of result.send) {
+        if (!sendAction.component) continue;
+        const targetComponent = system.getComponent(sendAction.component);
+        if (!targetComponent?.getEventHandler(sendAction.event)) continue;
+
+        const targetInstanceId = (sendAction.data?.targetInstanceId ??
+          sourceInstanceId) as string;
+        const targetInstance = targetComponent.getInstance(targetInstanceId);
+        if (!targetInstance) continue;
+
+        processEventRelationship(
+          sourceComponent,
+          sourceInstanceId,
+          sendAction.component,
+          targetInstanceId,
+          sendAction.event,
+        );
+
+        // Recursively simulate the target event handler
+        await simulateEventHandler(
+          targetComponent,
+          targetInstanceId,
+          sendAction.event,
+          sendAction.data ?? {},
+        );
+      }
+    }
+  };
+
+  // Simulate the initial INITIALIZED_SYSTEM event
+  const systemComponent = system.getComponent("system");
+  if (systemComponent) {
+    await simulateEventHandler(
+      systemComponent,
+      "system_1",
+      "INITIALIZED_SYSTEM",
+      {},
+    );
+  }
+
+  // Build component hierarchy
+  const componentHierarchy = new Map<string, ComponentVisualizerData>();
+  components.forEach((component) => {
+    const parent = component.getParent();
+    const children = component.getChildren();
+
+    componentHierarchy.set(component.getName(), {
       name: component.getName(),
-      parent: component.getParent()?.getName() ?? undefined,
-      children: component.getChildren().map((child) => child.getName()),
+      parent: parent?.getName() ?? undefined,
+      children: children.map((child) => child.getName()),
       instances: component.getInstanceIds().map((instanceId) => ({
         id: instanceId,
         data: component.getInstance(instanceId) ?? {},
@@ -119,7 +146,11 @@ export const getVisualizerSystemData = (
           component.getInstance(instanceId)?.siblingInstanceIds,
         siblingIndex: component.getInstance(instanceId)?.siblingIndex,
       })),
-    })),
+    });
+  });
+
+  return {
+    components: Array.from(componentHierarchy.values()),
     events,
   };
 };

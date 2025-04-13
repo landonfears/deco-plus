@@ -69,6 +69,8 @@ import { ChevronRightIcon, CornerDownRightIcon } from "lucide-react";
 import type {
   ComponentVisualizerData,
   InstanceVisualizerData,
+  SystemVisualizerData,
+  EventRelationship,
 } from "~/system/visualizer";
 
 export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
@@ -80,14 +82,33 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
   const [filteredInstance, setFilteredInstance] = useState<string | null>(
     filterInstance,
   );
+  const [resolvedSystemData, setResolvedSystemData] =
+    useState<SystemVisualizerData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadSystemData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await Promise.resolve(systemData);
+        setResolvedSystemData(data);
+      } catch (error) {
+        console.error("Error loading system data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadSystemData();
+  }, [systemData]);
 
   // Get hierarchical components for the filter dropdown
   const hierarchicalComponents = useMemo(() => {
-    return systemData.components;
-  }, [systemData.components]);
+    return resolvedSystemData?.components ?? [];
+  }, [resolvedSystemData]);
 
   // Render hierarchical select items
-  const renderHierarchicalItems = (components: SystemComponent[]) => {
+  const renderHierarchicalItems = (components: ComponentVisualizerData[]) => {
     return components.map((component) => {
       return (
         <SelectGroup key={component.name}>
@@ -122,7 +143,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
     const shouldIncludeInstance = (instanceId: string): boolean => {
       if (!filteredInstance) return true;
 
-      const instance = getInstanceById(systemData, instanceId);
+      const instance = getInstanceById(resolvedSystemData!, instanceId);
       if (!instance) return false;
 
       // Check if this is the filtered instance
@@ -130,7 +151,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
 
       // Get all ancestors
       const getAncestors = (currentId: string): string[] => {
-        const current = getInstanceById(systemData, currentId);
+        const current = getInstanceById(resolvedSystemData!, currentId);
         if (!current?.parentInstanceId) return [];
         return [
           current.parentInstanceId,
@@ -140,7 +161,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
 
       // Get all descendants
       const getDescendants = (currentId: string): string[] => {
-        const current = getInstanceById(systemData, currentId);
+        const current = getInstanceById(resolvedSystemData!, currentId);
         if (!current?.childInstanceIds?.length) return [];
         return [
           ...current.childInstanceIds,
@@ -159,7 +180,8 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
     };
 
     // Initialize handle connections for all nodes
-    systemData.components.forEach((component) => {
+    console.log("resolvedSystemData", resolvedSystemData);
+    resolvedSystemData?.components.forEach((component) => {
       component.instances.forEach((instance) => {
         if (shouldIncludeInstance(instance.id)) {
           const instanceId = buildInstanceLabel(component.name, instance.id);
@@ -177,7 +199,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
       shift: { x: number; y: number },
     ) => {
       const instanceLabel = buildInstanceLabel(
-        getComponentByInstanceId(systemData, instanceId)!,
+        getComponentByInstanceId(resolvedSystemData!, instanceId)!,
         instanceId,
       );
       const instanceBounds = nodeDimensions.get(instanceLabel);
@@ -193,7 +215,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
 
     // Function to get or calculate node bounds
     const shiftNodeVerticalPosition = (instanceId: string) => {
-      const instance = getInstanceById(systemData, instanceId);
+      const instance = getInstanceById(resolvedSystemData!, instanceId);
       if (!instance?.siblingInstanceIds?.length) return;
       const siblingIndex = instance?.siblingIndex ?? 0;
 
@@ -208,7 +230,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
             instance?.siblingInstanceIds?.[i * NODES_PER_ROW + j];
           if (siblingId) {
             const siblingLabel = buildInstanceLabel(
-              getComponentByInstanceId(systemData, siblingId)!,
+              getComponentByInstanceId(resolvedSystemData!, siblingId)!,
               siblingId,
             );
             const siblingBounds = nodeDimensions.get(siblingLabel);
@@ -225,7 +247,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
       }
 
       const instanceLabel = buildInstanceLabel(
-        getComponentByInstanceId(systemData, instanceId)!,
+        getComponentByInstanceId(resolvedSystemData!, instanceId)!,
         instanceId,
       );
       const instanceBounds = nodeDimensions.get(instanceLabel);
@@ -243,7 +265,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
 
       if (instance.parentInstanceId) {
         const parentInstance = getInstanceById(
-          systemData,
+          resolvedSystemData!,
           instance.parentInstanceId,
         );
         if (parentInstance) {
@@ -260,7 +282,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
                 parentInstance.childInstanceIds?.[i * NODES_PER_ROW + j];
               if (childId) {
                 const childLabel = buildInstanceLabel(
-                  getComponentByInstanceId(systemData, childId)!,
+                  getComponentByInstanceId(resolvedSystemData!, childId)!,
                   childId,
                 );
                 const childBounds = nodeDimensions.get(childLabel);
@@ -275,7 +297,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
             // y += maxHeight + NODE_PADDING;
           }
           const parentLabel = buildInstanceLabel(
-            getComponentByInstanceId(systemData, parentInstance.id)!,
+            getComponentByInstanceId(resolvedSystemData!, parentInstance.id)!,
             parentInstance.id,
           );
           const parentBounds = nodeDimensions.get(parentLabel);
@@ -294,7 +316,10 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
             // shift all siblings on the same row to the right
             // and all siblings on the next row down
             parentInstance.siblingInstanceIds?.forEach((siblingId) => {
-              const siblingInstance = getInstanceById(systemData, siblingId);
+              const siblingInstance = getInstanceById(
+                resolvedSystemData!,
+                siblingId,
+              );
 
               if (siblingInstance?.siblingIndex !== undefined) {
                 const isSameRow =
@@ -325,7 +350,10 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
       // get position
       const parentBounds = nodeDimensions.get(
         buildInstanceLabel(
-          getComponentByInstanceId(systemData, instance.parentInstanceId!)!,
+          getComponentByInstanceId(
+            resolvedSystemData!,
+            instance.parentInstanceId!,
+          )!,
           instance.parentInstanceId!,
         ),
       );
@@ -346,7 +374,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
           if (siblingId) {
             const siblingBounds = nodeDimensions.get(
               buildInstanceLabel(
-                getComponentByInstanceId(systemData, siblingId)!,
+                getComponentByInstanceId(resolvedSystemData!, siblingId)!,
                 siblingId,
               ),
             );
@@ -365,7 +393,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
             if (siblingId) {
               const siblingBounds = nodeDimensions.get(
                 buildInstanceLabel(
-                  getComponentByInstanceId(systemData, siblingId)!,
+                  getComponentByInstanceId(resolvedSystemData!, siblingId)!,
                   siblingId,
                 ),
               );
@@ -512,62 +540,68 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
 
     // Build nodes for instances
     const boundsMap = new Map<string, NodeBounds>();
-    systemData.components.forEach((component) => {
-      component.instances.forEach((instance) => {
-        if (!shouldIncludeInstance(instance.id)) return;
-        if (!instance.id) return;
+    resolvedSystemData?.components.forEach(
+      (component: ComponentVisualizerData) => {
+        component.instances.forEach((instance: InstanceVisualizerData) => {
+          if (!shouldIncludeInstance(instance.id)) return;
+          if (!instance.id) return;
 
-        const instanceId = buildInstanceLabel(component.name, instance.id);
-        const bounds = getNodeBoundsAlt(component, instance);
-        boundsMap.set(instanceId, bounds);
-        // Find the parent component and create the full parent instance ID
-        let parentNode: string | undefined;
-        if (instance.parentInstanceId) {
-          const parentComponent = systemData.components.find((c) =>
-            c.instances.some((i) => i.id === instance.parentInstanceId),
-          );
-          if (parentComponent) {
-            parentNode = buildInstanceLabel(
-              parentComponent.name,
-              instance.parentInstanceId,
+          const instanceId = buildInstanceLabel(component.name, instance.id);
+          const bounds = getNodeBoundsAlt(component, instance);
+          boundsMap.set(instanceId, bounds);
+          // Find the parent component and create the full parent instance ID
+          let parentNode: string | undefined;
+          if (instance.parentInstanceId) {
+            const parentComponent = resolvedSystemData?.components.find(
+              (c: ComponentVisualizerData) =>
+                c.instances.some(
+                  (i: InstanceVisualizerData) =>
+                    i.id === instance.parentInstanceId,
+                ),
             );
+            if (parentComponent) {
+              parentNode = buildInstanceLabel(
+                parentComponent.name,
+                instance.parentInstanceId,
+              );
+            }
           }
-        }
 
-        newNodes.push({
-          id: instanceId,
-          type: "default",
-          data: {
-            label: `${component.name} (${instance.id})`,
-            hasChildren: (instance.childInstanceIds ?? []).length > 0,
-            sourceHandles:
-              handleConnections.get(instanceId)?.sourceHandles ?? [],
-            targetHandles:
-              handleConnections.get(instanceId)?.targetHandles ?? [],
-            instanceData: instance.data,
-          },
-          position: { x: bounds.x, y: bounds.y },
-          draggable: !instance.parentInstanceId,
-          parentNode,
-          expandParent: false,
-          style: {
-            width: bounds.width,
-            height: bounds.height,
-            padding: 16,
-            borderRadius: 4,
-            zIndex: 0,
-            border: "1px solid #999999",
-          },
+          newNodes.push({
+            id: instanceId,
+            type: "default",
+            data: {
+              label: `${component.name} (${instance.id})`,
+              hasChildren: (instance.childInstanceIds ?? []).length > 0,
+              sourceHandles:
+                handleConnections.get(instanceId)?.sourceHandles ?? [],
+              targetHandles:
+                handleConnections.get(instanceId)?.targetHandles ?? [],
+              instanceData: instance.data,
+            },
+            position: { x: bounds.x, y: bounds.y },
+            draggable: !instance.parentInstanceId,
+            parentNode,
+            expandParent: false,
+            style: {
+              width: bounds.width,
+              height: bounds.height,
+              padding: 16,
+              borderRadius: 4,
+              zIndex: 0,
+              border: "1px solid #999999",
+            },
+          });
         });
-      });
-    });
+      },
+    );
 
-    systemData.events?.forEach((event) => {
-      const fromComponent = systemData.components.find(
-        (c) => c.name === event.from,
+    resolvedSystemData?.events?.forEach((event: EventRelationship) => {
+      const fromComponent = resolvedSystemData?.components.find(
+        (c: ComponentVisualizerData) => c.name === event.from,
       );
-      const toComponent = systemData.components.find(
-        (c) => c.name === event.to,
+      const toComponent = resolvedSystemData?.components.find(
+        (c: ComponentVisualizerData) => c.name === event.to,
       );
 
       if (!fromComponent || !toComponent || !event.data) return;
@@ -595,7 +629,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
         hasCircularEventRelationship(
           fromInstanceId,
           toInstanceId,
-          systemData.events ?? [],
+          resolvedSystemData?.events ?? [],
         )
       ) {
         return;
@@ -667,7 +701,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
 
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [systemData, setNodes, setEdges, filteredInstance]);
+  }, [resolvedSystemData, setNodes, setEdges, filteredInstance]);
 
   // Initialize the visualization when the component mounts
   useEffect(() => {
@@ -675,10 +709,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
   }, [buildComponentNodes]);
 
   return (
-    <div
-      className="flex h-full w-full flex-col"
-      data-testid="system-visualizer"
-    >
+    <div className="flex h-full w-full flex-col">
       <div className="border-b border-gray-200 p-4">
         <Select
           value={filteredInstance ?? "all"}
@@ -686,7 +717,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
             setFilteredInstance(value === "all" ? null : value)
           }
         >
-          <SelectTrigger className="w-[180px]" data-testid="instance-filter">
+          <SelectTrigger className="w-[180px]">
             <SelectValue>{filteredInstance ?? "All Instances"}</SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -697,34 +728,40 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
         </Select>
       </div>
       <div className="flex-1">
-        <ReactFlowProvider>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.3 }}
-            defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-            attributionPosition="bottom-right"
-            proOptions={{ hideAttribution: true }}
-            snapToGrid={true}
-            snapGrid={[20, 20]}
-            nodesDraggable={true}
-            nodesConnectable={false}
-            elementsSelectable={true}
-            panOnDrag={true}
-            minZoom={0.1}
-            maxZoom={2}
-            className="bg-gray-50 [&_.react-flow__edge]:!z-[1000]"
-          >
-            <Background color="#aaaaaa" gap={20} />
-            <Controls showInteractive={true} />
-            <FitNodes filteredInstance={filteredInstance} nodes={nodes} />
-          </ReactFlow>
-        </ReactFlowProvider>
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="text-gray-500">Loading system data...</div>
+          </div>
+        ) : (
+          <ReactFlowProvider>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              fitView
+              fitViewOptions={{ padding: 0.3 }}
+              defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+              attributionPosition="bottom-right"
+              proOptions={{ hideAttribution: true }}
+              snapToGrid={true}
+              snapGrid={[20, 20]}
+              nodesDraggable={true}
+              nodesConnectable={false}
+              elementsSelectable={true}
+              panOnDrag={true}
+              minZoom={0.1}
+              maxZoom={2}
+              className="bg-gray-50 [&_.react-flow__edge]:!z-[1000]"
+            >
+              <Background color="#aaaaaa" gap={20} />
+              <Controls showInteractive={true} />
+              <FitNodes filteredInstance={filteredInstance} nodes={nodes} />
+            </ReactFlow>
+          </ReactFlowProvider>
+        )}
       </div>
     </div>
   );
