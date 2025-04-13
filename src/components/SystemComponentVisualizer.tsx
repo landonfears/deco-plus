@@ -57,6 +57,7 @@ import {
   NODE_MIN_HEIGHT,
   type NodeShiftedVertical,
   splitInstanceLabel,
+  getComponentByComponentId,
 } from "~/lib/visualizer-utils";
 import { nodeTypes } from "~/components/visualizer/component-node";
 import { edgeTypes } from "~/components/visualizer/custom-edge";
@@ -76,7 +77,6 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
   const [filteredComponent, setFilteredComponent] = useState<string | null>(
     filterComponent,
   );
-  // useFitNodes({ filteredComponent, nodes });
 
   // Get hierarchical components for the filter dropdown
   const hierarchicalComponents = useMemo(() => {
@@ -471,6 +471,59 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
     // Create edges for events between instances
     const processedEventPairs = new Set<string>();
 
+    // Build nodes for instances
+    const boundsMap = new Map<string, NodeBounds>();
+    systemData.components.forEach((component) => {
+      if (shouldIncludeComponent(component.name)) {
+        component.instances.forEach((instance) => {
+          if (!instance.id) return;
+
+          const instanceId = buildInstanceLabel(component.name, instance.id);
+          const bounds = getNodeBoundsAlt(component, instance);
+          boundsMap.set(instanceId, bounds);
+          // Find the parent component and create the full parent instance ID
+          let parentNode: string | undefined;
+          if (instance.parentInstanceId) {
+            const parentComponent = systemData.components.find((c) =>
+              c.instances.some((i) => i.id === instance.parentInstanceId),
+            );
+            if (parentComponent) {
+              parentNode = buildInstanceLabel(
+                parentComponent.name,
+                instance.parentInstanceId,
+              );
+            }
+          }
+
+          newNodes.push({
+            id: instanceId,
+            type: "default",
+            data: {
+              label: `${component.name} (${instance.id})`,
+              hasChildren: (instance.childInstanceIds ?? []).length > 0,
+              sourceHandles:
+                handleConnections.get(instanceId)?.sourceHandles ?? [],
+              targetHandles:
+                handleConnections.get(instanceId)?.targetHandles ?? [],
+              instanceData: instance.data,
+            },
+            position: { x: bounds.x, y: bounds.y },
+            draggable: !instance.parentInstanceId,
+            parentNode,
+            expandParent: false,
+            style: {
+              width: bounds.width,
+              height: bounds.height,
+              padding: 16,
+              borderRadius: 4,
+              zIndex: 0,
+              border: "1px solid #999999",
+            },
+          });
+        });
+      }
+    });
+
     systemData.events?.forEach((event) => {
       const fromComponent = systemData.components.find(
         (c) => c.name === event.from,
@@ -509,9 +562,11 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
       ) {
         return;
       }
+      const sourceBounds = boundsMap.get(fromInstanceId)!;
+      const targetBounds = boundsMap.get(toInstanceId)!;
 
-      const sourceBounds = getNodeBounds(fromInstanceId);
-      const targetBounds = getNodeBounds(toInstanceId);
+      // const sourceBounds = getNodeBounds(fromInstanceId);
+      // const targetBounds = getNodeBounds(toInstanceId);
 
       const fromPos = { x: sourceBounds.x, y: sourceBounds.y };
       const toPos = { x: targetBounds.x, y: targetBounds.y };
@@ -559,61 +614,6 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
       });
 
       processedEventPairs.add(eventPairKey);
-    });
-
-    // Build nodes for instances
-    let c = 0;
-    systemData.components.forEach((component) => {
-      if (shouldIncludeComponent(component.name)) {
-        component.instances.forEach((instance) => {
-          c += 1;
-          // if (c > 15) return;
-          if (!instance.id) return;
-
-          const instanceId = buildInstanceLabel(component.name, instance.id);
-          const bounds = getNodeBoundsAlt(component, instance);
-
-          // Find the parent component and create the full parent instance ID
-          let parentNode: string | undefined;
-          if (instance.parentInstanceId) {
-            const parentComponent = systemData.components.find((c) =>
-              c.instances.some((i) => i.id === instance.parentInstanceId),
-            );
-            if (parentComponent) {
-              parentNode = buildInstanceLabel(
-                parentComponent.name,
-                instance.parentInstanceId,
-              );
-            }
-          }
-
-          newNodes.push({
-            id: instanceId,
-            type: "default",
-            data: {
-              label: `${component.name} (${instance.id})`,
-              hasChildren: (instance.childInstanceIds ?? []).length > 0,
-              sourceHandles:
-                handleConnections.get(instanceId)?.sourceHandles ?? [],
-              targetHandles:
-                handleConnections.get(instanceId)?.targetHandles ?? [],
-              instanceData: instance.data,
-            },
-            position: { x: bounds.x, y: bounds.y },
-            draggable: !instance.parentInstanceId,
-            parentNode,
-            expandParent: false,
-            style: {
-              width: bounds.width,
-              height: bounds.height,
-              padding: 16,
-              borderRadius: 4,
-              zIndex: 0,
-              border: "1px solid #999999",
-            },
-          });
-        });
-      }
     });
 
     // Hydrate node with dynamic dimensions

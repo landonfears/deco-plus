@@ -539,17 +539,24 @@ export const getInstanceById = (
   return undefined;
 };
 
+export const getComponentByComponentId = (
+  systemData: SystemVisualizerData,
+  componentName: string,
+) => {
+  return systemData.components.find((c) => c.name === componentName);
+};
+
 export const buildInstanceLabel = (
   componentName: string,
   instanceId: string,
 ) => {
-  return `${componentName}::${instanceId}`;
+  return `${componentName}__${instanceId}`;
 };
 
 export const splitInstanceLabel = (
   instanceLabel: string,
 ): { componentName: string; instanceId: string } => {
-  const [componentName, instanceId] = instanceLabel.split("::") as [
+  const [componentName, instanceId] = instanceLabel.split("__") as [
     string,
     string,
   ];
