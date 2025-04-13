@@ -27,7 +27,7 @@ describe("Button System", () => {
   });
 
   describe("Internal Developer Workflow", () => {
-    it("should build and create a button", async () => {
+    it("should build and create a button with proper relationships", async () => {
       const devId = "dev1";
       const buttonId = "button_1";
       internalDev.createInstance("internalDev", devId, {});
@@ -42,16 +42,22 @@ describe("Button System", () => {
       await system.processEvents();
 
       const buttonInstance = button.getInstance(buttonId);
+      console.log("buttinst", buttonInstance);
       expect(buttonInstance).toBeDefined();
       expect(buttonInstance?.size).toBe("large");
       expect(buttonInstance?.color).toBe("primary");
+      expect(buttonInstance?.parentInstanceId).toBe(devId);
+      expect(buttonInstance?.siblingInstanceIds).toEqual([]);
+      expect(buttonInstance?.siblingIndex).toBe(0);
     });
 
     it("should test the button by clicking it", async () => {
       const devId = "dev1";
       const buttonId = "button1";
       internalDev.createInstance("internalDev", devId, {});
-      button.createInstance("button", buttonId, {});
+      button.createInstance("button", buttonId, {
+        parentInstanceId: devId,
+      });
 
       const testData: TestButtonEventData = {
         instanceId: devId,
@@ -69,7 +75,9 @@ describe("Button System", () => {
       const devId = "dev1";
       const buttonId = "button1";
       internalDev.createInstance("internalDev", devId, {});
-      button.createInstance("button", buttonId, {});
+      button.createInstance("button", buttonId, {
+        parentInstanceId: devId,
+      });
 
       // Deploy to cloud
       const cloudDeployData: DeployButtonEventData = {
@@ -105,7 +113,9 @@ describe("Button System", () => {
       const userId = "user1";
       const buttonId = "button1";
       endUser.createInstance("endUser", userId, {});
-      button.createInstance("button", buttonId, {});
+      button.createInstance("button", buttonId, {
+        parentInstanceId: userId,
+      });
 
       const clickData: ClickButtonEventData = {
         instanceId: userId,
@@ -124,9 +134,15 @@ describe("Button System", () => {
       const userId = "user1";
       const buttonId = "button1";
       endUser.createInstance("endUser", userId, {});
-      button.createInstance("button", buttonId, {});
-      button.createInstance("button", "button2", {});
-      button.createInstance("button", "button3", {});
+      button.createInstance("button", buttonId, {
+        parentInstanceId: userId,
+      });
+      button.createInstance("button", "button2", {
+        parentInstanceId: userId,
+      });
+      button.createInstance("button", "button3", {
+        parentInstanceId: userId,
+      });
 
       const clickData: ClickButtonEventData = {
         instanceId: userId,
@@ -148,7 +164,9 @@ describe("Button System", () => {
       const devId = "extDev1";
       const buttonId = "button1";
       externalDev.createInstance("externalDev", devId, {});
-      button.createInstance("button", buttonId, {});
+      button.createInstance("button", buttonId, {
+        parentInstanceId: devId,
+      });
 
       const customizeData: CustomizeButtonEventData = {
         instanceId: devId,
@@ -175,7 +193,9 @@ describe("Button System", () => {
       const devId = "extDev1";
       const buttonId = "button1";
       externalDev.createInstance("externalDev", devId, {});
-      button.createInstance("button", buttonId, {});
+      button.createInstance("button", buttonId, {
+        parentInstanceId: devId,
+      });
 
       // Deploy to Netlify
       const netlifyDeployData: ExternalDeployEventData = {
@@ -200,7 +220,9 @@ describe("Button System", () => {
       const newDevId = "extDev2";
       const newButtonId = "button2";
       externalDev.createInstance("externalDev", newDevId, {});
-      button.createInstance("button", newButtonId, {});
+      button.createInstance("button", newButtonId, {
+        parentInstanceId: newDevId,
+      });
 
       // Deploy to Vercel
       const vercelDeployData: ExternalDeployEventData = {

@@ -1,11 +1,13 @@
 import { System, Component } from "./core-system";
+import type { ComponentData } from "./core-system";
 
 // Types
 export type ButtonSize = "small" | "medium" | "large";
 export type ButtonColor = "primary" | "secondary" | "success" | "danger";
+export type ButtonPlatform = "netlify" | "vercel" | "cloudflare";
 
 // Data interfaces
-export interface ButtonData {
+export interface ButtonData extends ComponentData {
   id: string;
   count: number;
   size: ButtonSize;
@@ -13,18 +15,18 @@ export interface ButtonData {
   isDeployed: boolean;
 }
 
-export interface InternalDevData {
+export interface InternalDevData extends ComponentData {
   id: string;
   isTesting: boolean;
   isDeploying: boolean;
 }
 
-export interface EndUserData {
+export interface EndUserData extends ComponentData {
   id: string;
   hasClicked: boolean;
 }
 
-export interface ExternalDevData {
+export interface ExternalDevData extends ComponentData {
   id: string;
   isCustomizing: boolean;
   isDeploying: boolean;
@@ -112,6 +114,7 @@ internalDev.on("BUILD_BUTTON", async (instanceId, data, component) => {
     color: buildData.color,
     count: 0,
     isDeployed: false,
+    parentInstanceId: instanceId,
   });
 
   return {
@@ -136,7 +139,7 @@ button.on("BUTTON_CREATED", async (instanceId, data, component) => {
   );
   const buttonData = data as Record<string, unknown>;
   const targetInstanceId = buttonData.instanceId as string;
-  const existingInstance = component.getInstance(targetInstanceId);
+  const existingInstance = button.getInstance(targetInstanceId);
   if (!existingInstance) {
     throw new Error(`Button instance ${targetInstanceId} not found`);
   }
@@ -155,6 +158,7 @@ button.on("BUTTON_CREATED", async (instanceId, data, component) => {
 internalDev.on("TEST_BUTTON", async (instanceId, data, component) => {
   const testData = data as TestButtonEventData;
   const buttonInstance = button.getInstance(testData.buttonId);
+
   if (!buttonInstance) {
     throw new Error("Button instance not found");
   }
@@ -175,7 +179,7 @@ internalDev.on("TEST_BUTTON", async (instanceId, data, component) => {
 });
 
 button.on("BUTTON_CLICKED", async (instanceId, data, component) => {
-  const instance = component.getInstance(instanceId);
+  const instance = button.getInstance(data.instanceId as string);
   if (!instance) {
     throw new Error("Button instance not found");
   }
@@ -203,15 +207,25 @@ internalDev.on("DEPLOY_BUTTON", async (instanceId, data, component) => {
         event: "BUTTON_DEPLOYED",
         data: {
           instanceId: deployData.buttonId,
+          targetInstanceId: deployData.buttonId,
         } as Record<string, unknown>,
+        targetInstanceId: deployData.buttonId,
       },
     ],
   };
 });
 
 button.on("BUTTON_DEPLOYED", async (instanceId, data, component) => {
+  const deployData = data as Record<string, unknown>;
+  const targetInstanceId = deployData.instanceId as string;
+  const instance = button.getInstance(targetInstanceId);
+  if (!instance) {
+    throw new Error(`Button instance ${targetInstanceId} not found`);
+  }
   return {
     update: {
+      platform: deployData.platform as ButtonPlatform,
+      deploymentStatus: "deployed",
       isDeployed: true,
     },
   };
@@ -260,6 +274,7 @@ externalDev.on("CUSTOMIZE_BUTTON", async (instanceId, data, component) => {
           instanceId: customizeData.buttonId,
           size: customizeData.size,
           color: customizeData.color,
+          targetInstanceId: customizeData.buttonId,
         } as Record<string, unknown>,
       },
     ],
@@ -268,6 +283,11 @@ externalDev.on("CUSTOMIZE_BUTTON", async (instanceId, data, component) => {
 
 button.on("BUTTON_CUSTOMIZED", async (instanceId, data, component) => {
   const customData = data as Record<string, unknown>;
+  const targetInstanceId = customData.targetInstanceId as string;
+  const instance = button.getInstance(targetInstanceId);
+  if (!instance) {
+    throw new Error(`Button instance ${targetInstanceId} not found`);
+  }
   return {
     update: {
       size: customData.size as ButtonSize,
@@ -294,6 +314,8 @@ externalDev.on(
           event: "BUTTON_DEPLOYED",
           data: {
             instanceId: deployData.buttonId,
+            platform: deployData.target,
+            targetInstanceId: deployData.buttonId,
           } as Record<string, unknown>,
         },
       ],
