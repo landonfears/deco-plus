@@ -53,16 +53,14 @@ const COMPONENT_ORDER = [
 
 // Create instances for each component with explicit IDs, grouped by component type
 // System instances
-if (systemComponent) {
-  systemComponent.createInstanceInOrder(
-    "system_1",
-    {
-      name: "Main System",
-      status: "active",
-    },
-    COMPONENT_ORDER,
-  );
-}
+systemComponent!.createInstanceInOrder(
+  "system_1",
+  {
+    name: "Main System",
+    status: "active",
+  },
+  COMPONENT_ORDER,
+);
 
 // Parent instances
 parent.createInstanceInOrder(
@@ -256,22 +254,20 @@ grandchild.createInstanceInOrder(
   COMPONENT_ORDER,
 );
 
-if (systemComponent) {
-  systemComponent.on("INITIALIZED_SYSTEM", async (instanceId) => {
-    console.log(`System instance ${instanceId} initialized`);
-    return {
-      send: [
-        {
-          component: "grandchild",
-          event: "STARTED_SYSTEM",
-          data: {
-            targetInstanceId: "grandchild_1",
-          },
+systemComponent!.on("INITIALIZED_SYSTEM", async (instanceId) => {
+  console.log(`System instance ${instanceId} initialized`);
+  return {
+    send: [
+      {
+        component: "grandchild",
+        event: "STARTED_SYSTEM",
+        data: {
+          targetInstanceId: "grandchild_1",
         },
-      ],
-    };
-  });
-}
+      },
+    ],
+  };
+});
 
 systemComponent!.setInstanceParent("parent_6", "system_1");
 parent.setInstanceParent("child1_1", "parent_1");

@@ -532,6 +532,8 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
 
       // const sourceBounds = getNodeBounds(fromInstanceId);
       // const targetBounds = getNodeBounds(toInstanceId);
+      console.log("sourceBounds", sourceBounds, fromInstanceId);
+      console.log("targetBounds", targetBounds, toInstanceId);
 
       const fromPos = { x: sourceBounds.x, y: sourceBounds.y };
       const toPos = { x: targetBounds.x, y: targetBounds.y };

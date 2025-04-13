@@ -192,6 +192,12 @@ export class Component {
     // Get the child component and instance
     const [childComponentName] = childInstanceId.split("_") as [string];
     const childComponent = this.system.getComponent(childComponentName);
+    console.log(
+      "childComponent",
+      childComponent,
+      childComponentName,
+      childInstanceId,
+    );
     if (!childComponent) {
       throw new Error(`Child component ${childComponentName} not found`);
     }

@@ -119,12 +119,15 @@ export const getVisualizerSystemData = async (
   // Simulate the initial INITIALIZED_SYSTEM event
   const systemComponent = system.getComponent("system");
   if (systemComponent) {
-    await simulateEventHandler(
-      systemComponent,
-      "system_1",
-      "INITIALIZED_SYSTEM",
-      {},
-    );
+    const systemInstanceIds = systemComponent.getInstanceIds();
+    if (systemInstanceIds.length > 0) {
+      await simulateEventHandler(
+        systemComponent,
+        systemInstanceIds[0]!,
+        "INITIALIZED_SYSTEM",
+        {},
+      );
+    }
   }
 
   // Build component hierarchy

@@ -1,0 +1,155 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Documentation
+
+Best Practices & Walkthrough
+
+1. Start by creating a system component and instance
+    
+    ```tsx
+    const systemComponent = system.getComponent("system");
+    systemComponent!.createInstance("system", "system_instance", {
+    	name: "Main System"
+    });
+    ```
+    
+    The instance should be a unique identifier.  You can optionally add a data model to the component.  It’s best practice to give the instance a name for display purposes, but anything other data can be included.
+    
+2. Create the components you’ll need for the system:
+    
+    ```tsx
+    const parent = system.createComponent("parent", {});
+    const child = system.createComponent("child", {});
+    const grandchild = system.createComponent("grandchild", {});
+    ```
+    
+3. Define the order of components for instance creation using the component needed for the system.  We will enforce this ordering when creating instances later on.
+    
+    ```tsx
+    const COMPONENT_ORDER = [
+      "system",
+      "parent",
+      "child",
+      "grandchild",
+    ] as const;
+    ```
+    
+4. Optionally set up parent-child relationships if they exist:
+    
+    ```tsx
+    child.setParent("parent");
+    grandchild.setParent("child");
+    ```
+    
+5. Now we can create instances, and use `createInstanceOrder` to enforce the ordering in the `COMPONENT_ORDER` variable:
+    
+    ```tsx
+    parent.createInstanceInOrder(
+      "parent_susan",
+      {
+        name: "Susan",
+        isSleeping: true
+      },
+      COMPONENT_ORDER,
+    );
+    child.createInstanceInOrder(
+      "child_thomas",
+      {
+        name: "Thomas",
+        isSleeping: true
+      },
+      COMPONENT_ORDER,
+    );
+    grandchild.createInstanceInOrder(
+      "grandchild_richard",
+      {
+        name: "Richard",
+        isSleeping: true
+      },
+      COMPONENT_ORDER,
+    );
+    ```
+    
+    The instance ID should follow the format `{COMPONENT NAME}_{INSTANCE_ID}`.  These all follow the format: `parent_susan`, `child_thomas`, `grandchild_richard`.
+    
+6. We can optionally set up parent-child relationship with our instances.  This should be done if `setParent` was used to create parent/child relationships with components.  Ideally, the instances should belong to the same components in `setParent`:
+    
+    ```tsx
+    parent.setInstanceParent("child_thomas", "parent_susan"); // aligns with child.setParent("parent");
+    child.setInstanceParent("granchild_richard", "child_thomas"); // aligns with grandchild.setParent("child");
+    ```
+    
+7. All system components should listen for an INITIALIZED_SYSTEM event, and should also send it to an existing component and instance in the system.  The sent event can be named anything.
+    
+    ```tsx
+    systemComponent!.on("INITIALIZED_SYSTEM", async (instanceId) => {
+      return {
+        send: [
+          {
+            component: "parent",
+            event: "SOMETHING_HAPPENED",
+            data: {
+              targetInstanceId: "parent_susan",
+            },
+          },
+        ],
+      };
+    });
+    ```
+    
+8. Now it’s time to add event handlers.  These allow for component instances to listen for and handle events.  It also allows for optionally sending out an event to another instance in the system.  The events below has the system wake up the parent, who then wakes up the child, who then wakes up the grandchild.
+    
+    ```tsx
+    parent.on("SOMETHING_HAPPENED", async (instanceId, data) => {
+      return {
+        update: {
+          isSleeping: false,
+        },
+        send: [
+          {
+            component: "child",
+            event: "SET_OFF_ALARM",
+            data: {
+              targetInstanceId: "child_thomas",
+            },
+          },
+        ],
+      };
+    });
+    child.on("SET_OFF_ALARM", async (instanceId, data) => {
+      return {
+        update: {
+          isSleeping: false,
+        },
+        send: [
+          {
+            component: "grandchild",
+            event: "SET_OFF_ALARM",
+            data: {
+              targetInstanceId: "grandchild_richard",
+            },
+          },
+        ],
+      };
+    });
+    grandchild.on("SET_OFF_ALARM", async (instanceId, data) => {
+      return {
+        update: {
+          isSleeping: false,
+        },
+      };
+    });
+    ```
+    
+    Ideally, every event that gets sent out by an instance should also be listened for by the same instance or another instance.
+    
+9. Finally, to get the system started automatically, queue the INITIALIZED_SYSTEM event and start processing events:
+    
+    ```tsx
+    // Initialize the system with explicit instance
+    system.queueEvent("system", "system_instance", "INITIALIZED_SYSTEM", {});
+    system.processEvents().catch(console.error);
+    ```
