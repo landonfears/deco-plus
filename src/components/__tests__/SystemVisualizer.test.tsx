@@ -53,58 +53,58 @@ describe("SystemVisualizer", () => {
   });
 });
 
-// describe("SystemVisualizer Filtering", () => {
-//   const systemData = getVisualizerSystemData(system);
+describe("SystemVisualizer Filtering", () => {
+  const systemData = getVisualizerSystemData(system);
 
-//   it("renders all components when no filter is applied", async () => {
-//     render(<SystemVisualizerWithProvider systemData={systemData} />);
+  it("renders all instances when no filter is applied", async () => {
+    render(<SystemVisualizerWithProvider systemData={systemData} />);
 
-//     // Check that all components are rendered
-//     expect(screen.getByTestId("node-parent (parent_1)")).toBeInTheDocument();
-//     expect(screen.getByTestId("node-child1 (child1_1)")).toBeInTheDocument();
-//     expect(screen.getByTestId("node-child2 (child2_1)")).toBeInTheDocument();
-//     expect(
-//       screen.getByTestId("node-grandchild (grandchild_1)"),
-//     ).toBeInTheDocument();
-//   });
+    // Check that all components are rendered
+    expect(screen.getByTestId("node-parent (parent_1)")).toBeInTheDocument();
+    expect(screen.getByTestId("node-child1 (child1_1)")).toBeInTheDocument();
+    expect(screen.getByTestId("node-child2 (child2_1)")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("node-grandchild (grandchild_1)"),
+    ).toBeInTheDocument();
+  });
 
-//   it("filters components when a child component is selected", () => {
-//     render(
-//       <SystemVisualizerWithProvider
-//         systemData={systemData}
-//         filterComponent="child1"
-//       />,
-//     );
+  it("filters instances when a child component is selected", () => {
+    render(
+      <SystemVisualizerWithProvider
+        systemData={systemData}
+        filterInstance="child1_1"
+      />,
+    );
 
-//     // Check that only Root and its children are visible
-//     expect(screen.getByTestId("node-parent (parent_1)")).toBeInTheDocument();
-//     expect(screen.getByTestId("node-child1 (child1_1)")).toBeInTheDocument();
-//     expect(
-//       screen.queryByTestId("node-child2 (child2_1)"),
-//     ).not.toBeInTheDocument();
-//     expect(
-//       screen.queryByTestId("node-grandchild (grandchild_1)"),
-//     ).toBeInTheDocument();
-//   });
+    // Check that only Root and its children are visible
+    expect(screen.getByTestId("node-parent (parent_1)")).toBeInTheDocument();
+    expect(screen.getByTestId("node-child1 (child1_1)")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("node-child2 (child2_1)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("node-grandchild (grandchild_1)"),
+    ).toBeInTheDocument();
+  });
 
-//   it("filters components when another child component is selected", () => {
-//     render(
-//       <SystemVisualizerWithProvider
-//         systemData={systemData}
-//         filterComponent="child2"
-//       />,
-//     );
+  it("filters instances when another child component is selected", () => {
+    render(
+      <SystemVisualizerWithProvider
+        systemData={systemData}
+        filterInstance="child2_1"
+      />,
+    );
 
-//     // Check that only Root and its children are visible
-//     expect(screen.getByTestId("node-parent (parent_1)")).toBeInTheDocument();
-//     expect(
-//       screen.queryByTestId("node-child1 (child1_1)"),
-//     ).not.toBeInTheDocument();
-//     expect(screen.getByTestId("node-child2 (child2_1)")).toBeInTheDocument();
-//     expect(
-//       screen.queryByTestId("node-grandchild (grandchild_1)"),
-//     ).not.toBeInTheDocument();
-//   });
+    // Check that only Root and its children are visible
+    expect(screen.getByTestId("node-parent (parent_2)")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("node-child1 (child1_1)"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("node-child2 (child2_1)")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("node-grandchild (grandchild_1)"),
+    ).not.toBeInTheDocument();
+  });
 
-//   // TODO: Tests do not render edges in React Flow
-// });
+  // TODO: Tests do not render edges in React Flow
+});
