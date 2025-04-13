@@ -32,7 +32,7 @@ export interface MovementEventData {
   fridgeId: string;
 }
 
-export interface ArrivalEventData {
+export interface ArrivedAtFridgeEventData {
   instanceId: string;
   movementMethod: MovementMethod;
   fridgeId: string;
@@ -44,11 +44,13 @@ export interface OpenFridgeEventData {
   movementMethod: MovementMethod;
   personId: string;
   requestedFood: FoodType[];
+  targetInstanceId: string;
 }
 
 export interface FoodFoundEventData extends Record<string, unknown> {
   instanceId: string;
   foundFood: FoodType[];
+  targetInstanceId: string;
 }
 
 export interface AteFoodEventData extends Record<string, unknown> {
@@ -85,10 +87,11 @@ person.on("FELT_HUNGER", async (instanceId, data, component) => {
     send: [
       {
         component: "person",
+        instanceId: instanceId,
         event: "STARTED_MOVING",
         data: {
-          instanceId: hungerData.instanceId,
-          movementMethod: instance.movementMethod,
+          instanceId: instanceId,
+          movementMethod: "walking",
           requestedFood: hungerData.food,
           fridgeId: hungerData.fridgeId,
         } as Record<string, unknown>,
@@ -122,17 +125,22 @@ person.on("STARTED_MOVING", async (instanceId, data, component) => {
 });
 
 person.on("ARRIVED_AT_FRIDGE", async (instanceId, data, component) => {
-  const arrivalData = data as unknown as ArrivalEventData;
+  const instance = component.getInstance(instanceId) as PersonData | undefined;
+  if (!instance) return {};
+
+  const arrivalData = data as unknown as ArrivedAtFridgeEventData;
   return {
     send: [
       {
         component: "fridge",
+        instanceId: arrivalData.fridgeId,
         event: "OPENED_FRIDGE",
         data: {
           instanceId: arrivalData.fridgeId,
           movementMethod: arrivalData.movementMethod,
           personId: instanceId,
           requestedFood: arrivalData.requestedFood,
+          targetInstanceId: arrivalData.fridgeId,
         } as Record<string, unknown>,
       },
     ],
@@ -140,10 +148,10 @@ person.on("ARRIVED_AT_FRIDGE", async (instanceId, data, component) => {
 });
 
 fridge.on("OPENED_FRIDGE", async (instanceId, data, component) => {
-  const fridgeInstance = component.getInstance(instanceId) as
+  const openData = data as unknown as OpenFridgeEventData;
+  const fridgeInstance = component.getInstance(openData.targetInstanceId) as
     | FridgeData
     | undefined;
-  const openData = data as unknown as OpenFridgeEventData;
   const personInstance = person.getInstance(openData.personId) as
     | PersonData
     | undefined;
@@ -155,18 +163,10 @@ fridge.on("OPENED_FRIDGE", async (instanceId, data, component) => {
     fridgeInstance.food.includes(food),
   );
 
-  console.log("\n=== Food Handling ===");
-  console.log("Requested Food:", openData.requestedFood);
-  console.log("Fridge Food:", fridgeInstance.food);
-  console.log("Found Food:", foundFood);
-
   // Remove found food from fridge
   const remainingFood = fridgeInstance.food.filter(
     (food: FoodType) => !foundFood.includes(food),
   );
-
-  console.log("Remaining Food:", remainingFood);
-  console.log("=====================\n");
 
   return {
     update: {
@@ -176,10 +176,11 @@ fridge.on("OPENED_FRIDGE", async (instanceId, data, component) => {
     send: [
       {
         component: "person",
+        instanceId: openData.personId,
         event: "FOOD_FOUND",
         data: {
-          instanceId: openData.personId,
           foundFood,
+          targetInstanceId: openData.personId,
         } as Record<string, unknown>,
       },
     ],
@@ -191,9 +192,10 @@ person.on("FOOD_FOUND", async (instanceId, data, component) => {
   if (!instance) return {};
 
   const foodData = data as unknown as FoodFoundEventData;
+
   return {
     update: {
-      food: [...instance.food, ...foodData.foundFood],
+      food: [...(instance.food || []), ...(foodData.foundFood || [])],
       isHungry: false,
     },
   };
