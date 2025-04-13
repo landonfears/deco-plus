@@ -259,11 +259,11 @@ if (systemComponent) {
     console.log(`System instance ${instanceId} initialized`);
     return {
       send: [
-        {
-          component: "parent",
-          event: "STARTED_SYSTEM",
-          data: { targetInstanceId: "parent_1" },
-        },
+        // {
+        //   component: "parent",
+        //   event: "STARTED_SYSTEM",
+        //   data: { targetInstanceId: "parent_1" },
+        // },
         {
           component: "grandchild",
           event: "STARTED_SYSTEM",

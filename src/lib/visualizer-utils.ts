@@ -543,5 +543,15 @@ export const buildInstanceLabel = (
   componentName: string,
   instanceId: string,
 ) => {
-  return `${componentName}_${instanceId}`;
+  return `${componentName}::${instanceId}`;
+};
+
+export const splitInstanceLabel = (
+  instanceLabel: string,
+): { componentName: string; instanceId: string } => {
+  const [componentName, instanceId] = instanceLabel.split("::") as [
+    string,
+    string,
+  ];
+  return { componentName, instanceId };
 };

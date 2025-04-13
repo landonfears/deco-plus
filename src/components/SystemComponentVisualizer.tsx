@@ -56,6 +56,7 @@ import {
   NODE_MIN_WIDTH,
   NODE_MIN_HEIGHT,
   type NodeShiftedVertical,
+  splitInstanceLabel,
 } from "~/lib/visualizer-utils";
 import { nodeTypes } from "~/components/visualizer/component-node";
 import { edgeTypes } from "~/components/visualizer/custom-edge";
@@ -122,7 +123,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
       if (shouldIncludeComponent(component.name)) {
         // For each instance of the component
         component.instances.forEach((instance) => {
-          const instanceId = `${component.name}_${instance.id}`;
+          const instanceId = buildInstanceLabel(component.name, instance.id);
           handleConnections.set(instanceId, {
             sourceHandles: [],
             targetHandles: [],
@@ -352,7 +353,8 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
     };
     const getNodeBounds = (fullInstanceId: string): NodeBounds => {
       if (!nodeDimensions.has(fullInstanceId)) {
-        const [componentName, instanceId] = fullInstanceId.split("_");
+        const { componentName, instanceId } =
+          splitInstanceLabel(fullInstanceId);
         if (!componentName || !instanceId) {
           return { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
         }
@@ -372,7 +374,9 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
             const childComponent = systemData.components.find((c) =>
               c.instances.some((i) => i.id === childId),
             );
-            return childComponent ? `${childComponent.name}_${childId}` : null;
+            return childComponent
+              ? buildInstanceLabel(childComponent.name, childId)
+              : null;
           })
           .filter((id): id is string => id !== null);
 
@@ -406,14 +410,17 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
           );
 
           if (parentComponent) {
-            const parentId = `${parentComponent.name}_${instance.parentInstanceId}`;
+            const parentId = buildInstanceLabel(
+              parentComponent.name,
+              instance.parentInstanceId,
+            );
             const parentBounds = getNodeBounds(parentId);
 
             // Find all siblings that share the same parent
             const siblings = systemData.components.flatMap((c) =>
               c.instances
                 .filter((i) => i.parentInstanceId === instance.parentInstanceId)
-                .map((i) => `${c.name}_${i.id}`),
+                .map((i) => buildInstanceLabel(c.name, i.id)),
             );
 
             const siblingIndex = siblings.indexOf(fullInstanceId);
@@ -438,7 +445,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
           const rootInstances = systemData.components.flatMap((c) =>
             c.instances
               .filter((i) => !i.parentInstanceId)
-              .map((i) => `${c.name}_${i.id}`),
+              .map((i) => buildInstanceLabel(c.name, i.id)),
           );
 
           const rootIndex = rootInstances.indexOf(fullInstanceId);
@@ -474,8 +481,14 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
 
       if (!fromComponent || !toComponent || !event.data) return;
 
-      const fromInstanceId = `${event.from}_${event.data.instanceId}`;
-      const toInstanceId = `${event.to}_${event.data.targetInstanceId}`;
+      const fromInstanceId = buildInstanceLabel(
+        event.from,
+        event.data.instanceId,
+      );
+      const toInstanceId = buildInstanceLabel(
+        event.to,
+        event.data.targetInstanceId,
+      );
 
       if (
         !shouldIncludeComponent(event.from) ||
@@ -557,7 +570,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
           // if (c > 15) return;
           if (!instance.id) return;
 
-          const instanceId = `${component.name}_${instance.id}`;
+          const instanceId = buildInstanceLabel(component.name, instance.id);
           const bounds = getNodeBoundsAlt(component, instance);
 
           // Find the parent component and create the full parent instance ID
@@ -567,7 +580,10 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
               c.instances.some((i) => i.id === instance.parentInstanceId),
             );
             if (parentComponent) {
-              parentNode = `${parentComponent.name}_${instance.parentInstanceId}`;
+              parentNode = buildInstanceLabel(
+                parentComponent.name,
+                instance.parentInstanceId,
+              );
             }
           }
 
