@@ -26,6 +26,7 @@ export interface SystemComponent {
   name: string;
   children: string[];
   parent: string | undefined;
+  instances: InstanceVisualizerData[];
 }
 
 export interface ComponentCounts {
@@ -60,7 +61,7 @@ export interface SimpleNode {
 
 export interface SystemVisualizerProps {
   systemData: SystemVisualizerData;
-  filterComponent?: string | null;
+  filterInstance?: string | null;
 }
 
 export function getNodePosition(
@@ -485,28 +486,13 @@ export interface HierarchicalComponent {
   level: number;
 }
 
-export function getHierarchicalComponents(
-  components: SystemComponent[],
-): HierarchicalComponent[] {
-  const rootComponents = components.filter((c) => !c.parent);
-  const result: HierarchicalComponent[] = [];
+export function getHierarchicalInstances(components: SystemComponent[]) {
+  const instances = [];
 
-  function buildHierarchy(
-    component: SystemComponent,
-    level: number,
-  ): HierarchicalComponent {
-    const children = components
-      .filter((c) => c.parent === component.name)
-      .map((child) => buildHierarchy(child, level + 1));
-
-    return {
-      name: component.name,
-      children,
-      level,
-    };
+  for (const component of components) {
+    instances.push(...component.instances);
   }
-
-  return rootComponents.map((component) => buildHierarchy(component, 0));
+  return instances;
 }
 
 export const getComponentByInstanceId = (

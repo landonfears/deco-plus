@@ -9,10 +9,10 @@ import { System } from "../../system/core-system";
 describe("visualizer-utils", () => {
   const mockSystemData = {
     components: [
-      { name: "Root1", parent: undefined, children: ["Child1"] },
-      { name: "Child1", parent: "Root1", children: [] },
-      { name: "Root2", parent: undefined, children: ["Child2"] },
-      { name: "Child2", parent: "Root2", children: [] },
+      { name: "Root1", parent: undefined, children: ["Child1"], instances: [] },
+      { name: "Child1", parent: "Root1", children: [], instances: [] },
+      { name: "Root2", parent: undefined, children: ["Child2"], instances: [] },
+      { name: "Child2", parent: "Root2", children: [], instances: [] },
     ],
   };
 

@@ -23,7 +23,9 @@ import "@reactflow/node-resizer/dist/style.css";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
@@ -48,7 +50,6 @@ import {
   hasCircularEventRelationship,
   // calculateFilteredPosition,
   // hasCircularEventRelationship,
-  getHierarchicalComponents,
   type HierarchicalComponent,
   buildInstanceLabel,
   getComponentByInstanceId,
@@ -58,6 +59,8 @@ import {
   type NodeShiftedVertical,
   splitInstanceLabel,
   getComponentByComponentId,
+  getHierarchicalInstances,
+  type SystemComponent,
 } from "~/lib/visualizer-utils";
 import { nodeTypes } from "~/components/visualizer/component-node";
 import { edgeTypes } from "~/components/visualizer/custom-edge";
@@ -70,36 +73,39 @@ import type {
 
 export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
   systemData,
-  filterComponent = null,
+  filterInstance = null,
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [filteredComponent, setFilteredComponent] = useState<string | null>(
-    filterComponent,
+  const [filteredInstance, setFilteredInstance] = useState<string | null>(
+    filterInstance,
   );
 
   // Get hierarchical components for the filter dropdown
   const hierarchicalComponents = useMemo(() => {
-    return getHierarchicalComponents(systemData.components);
+    return systemData.components;
   }, [systemData.components]);
 
   // Render hierarchical select items
-  const renderHierarchicalItems = (components: HierarchicalComponent[]) => {
-    return components.map((component) => (
-      <Fragment key={component.name}>
-        <SelectItem value={component.name}>
-          <div className="flex items-center gap-1">
-            <div style={{ paddingLeft: `${(component.level - 1) * 10}px` }} />
-            {component.level > 0 ? (
-              <ChevronRightIcon className="h-4 w-4" />
-            ) : null}
-            <p>{component.name}</p>
-          </div>
-        </SelectItem>
-        {component.children.length > 0 &&
-          renderHierarchicalItems(component.children)}
-      </Fragment>
-    ));
+  const renderHierarchicalItems = (components: SystemComponent[]) => {
+    return components.map((component) => {
+      return (
+        <SelectGroup key={component.name}>
+          <SelectLabel>{component.name}</SelectLabel>
+          <Fragment>
+            {component.instances.map((instance) => {
+              return (
+                <Fragment key={instance.id}>
+                  <SelectItem value={instance.id}>
+                    <p>{(instance.data.name as string) ?? instance.id}</p>
+                  </SelectItem>
+                </Fragment>
+              );
+            })}
+          </Fragment>
+        </SelectGroup>
+      );
+    });
   };
 
   // Update buildComponentNodes to handle event edges
@@ -113,23 +119,56 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
     // Constants for layout
 
     // Helper function to check if a component should be included
-    const shouldIncludeComponent = (componentName: string): boolean => {
-      if (!filteredComponent) return true;
-      return componentName === filteredComponent;
+    const shouldIncludeInstance = (instanceId: string): boolean => {
+      if (!filteredInstance) return true;
+
+      const instance = getInstanceById(systemData, instanceId);
+      if (!instance) return false;
+
+      // Check if this is the filtered instance
+      if (instanceId === filteredInstance) return true;
+
+      // Get all ancestors
+      const getAncestors = (currentId: string): string[] => {
+        const current = getInstanceById(systemData, currentId);
+        if (!current?.parentInstanceId) return [];
+        return [
+          current.parentInstanceId,
+          ...getAncestors(current.parentInstanceId),
+        ];
+      };
+
+      // Get all descendants
+      const getDescendants = (currentId: string): string[] => {
+        const current = getInstanceById(systemData, currentId);
+        if (!current?.childInstanceIds?.length) return [];
+        return [
+          ...current.childInstanceIds,
+          ...current.childInstanceIds.flatMap(getDescendants),
+        ];
+      };
+
+      // Check if filtered instance is an ancestor or descendant
+      const ancestors = getAncestors(instanceId);
+      const descendants = getDescendants(instanceId);
+
+      return (
+        ancestors.includes(filteredInstance) ||
+        descendants.includes(filteredInstance)
+      );
     };
 
     // Initialize handle connections for all nodes
     systemData.components.forEach((component) => {
-      if (shouldIncludeComponent(component.name)) {
-        // For each instance of the component
-        component.instances.forEach((instance) => {
+      component.instances.forEach((instance) => {
+        if (shouldIncludeInstance(instance.id)) {
           const instanceId = buildInstanceLabel(component.name, instance.id);
           handleConnections.set(instanceId, {
             sourceHandles: [],
             targetHandles: [],
           });
-        });
-      }
+        }
+      });
     });
 
     // Function to get or calculate node bounds
@@ -351,122 +390,122 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
       const bounds = nodeDimensions.get(instanceLabel);
       return bounds!;
     };
-    const getNodeBounds = (fullInstanceId: string): NodeBounds => {
-      if (!nodeDimensions.has(fullInstanceId)) {
-        const { componentName, instanceId } =
-          splitInstanceLabel(fullInstanceId);
-        if (!componentName || !instanceId) {
-          return { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
-        }
+    // const getNodeBounds = (fullInstanceId: string): NodeBounds => {
+    //   if (!nodeDimensions.has(fullInstanceId)) {
+    //     const { componentName, instanceId } =
+    //       splitInstanceLabel(fullInstanceId);
+    //     if (!componentName || !instanceId) {
+    //       return { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
+    //     }
 
-        const component = systemData.components.find(
-          (c) => c.name === componentName,
-        );
-        const instance = component?.instances.find((i) => i.id === instanceId);
+    //     const component = systemData.components.find(
+    //       (c) => c.name === componentName,
+    //     );
+    //     const instance = component?.instances.find((i) => i.id === instanceId);
 
-        if (!component || !instance) {
-          return { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
-        }
+    //     if (!component || !instance) {
+    //       return { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
+    //     }
 
-        // Get child instances
-        const childInstances = (instance.childInstanceIds ?? [])
-          .map((childId) => {
-            const childComponent = systemData.components.find((c) =>
-              c.instances.some((i) => i.id === childId),
-            );
-            return childComponent
-              ? buildInstanceLabel(childComponent.name, childId)
-              : null;
-          })
-          .filter((id): id is string => id !== null);
+    //     // Get child instances
+    //     const childInstances = (instance.childInstanceIds ?? [])
+    //       .map((childId) => {
+    //         const childComponent = systemData.components.find((c) =>
+    //           c.instances.some((i) => i.id === childId),
+    //         );
+    //         return childComponent
+    //           ? buildInstanceLabel(childComponent.name, childId)
+    //           : null;
+    //       })
+    //       .filter((id): id is string => id !== null);
 
-        // Calculate dimensions based on children
-        let width = DEFAULT_WIDTH;
-        let height = DEFAULT_HEIGHT;
+    //     // Calculate dimensions based on children
+    //     let width = DEFAULT_WIDTH;
+    //     let height = DEFAULT_HEIGHT;
 
-        if (childInstances.length > 0) {
-          // Calculate how many rows and columns we need
-          const numChildren = childInstances.length;
-          const numCols = Math.min(NODES_PER_ROW, numChildren);
-          const numRows = Math.ceil(numChildren / NODES_PER_ROW);
+    //     if (childInstances.length > 0) {
+    //       // Calculate how many rows and columns we need
+    //       const numChildren = childInstances.length;
+    //       const numCols = Math.min(NODES_PER_ROW, numChildren);
+    //       const numRows = Math.ceil(numChildren / NODES_PER_ROW);
 
-          // Width is based on actual number of columns needed
-          width = numCols * DEFAULT_WIDTH + (numCols + 1) * NODE_PADDING;
+    //       // Width is based on actual number of columns needed
+    //       width = numCols * DEFAULT_WIDTH + (numCols + 1) * NODE_PADDING;
 
-          // Height is based on number of rows, with padding
-          height =
-            numRows * DEFAULT_HEIGHT +
-            (numRows + 1) * NODE_PADDING +
-            PARENT_CHILD_PADDING;
-        }
+    //       // Height is based on number of rows, with padding
+    //       height =
+    //         numRows * DEFAULT_HEIGHT +
+    //         (numRows + 1) * NODE_PADDING +
+    //         PARENT_CHILD_PADDING;
+    //     }
 
-        // Calculate position
-        let position = { x: 0, y: 0 };
+    //     // Calculate position
+    //     let position = { x: 0, y: 0 };
 
-        if (instance.parentInstanceId) {
-          // For child nodes, position relative to parent
-          const parentComponent = systemData.components.find((c) =>
-            c.instances.some((i) => i.id === instance.parentInstanceId),
-          );
+    //     if (instance.parentInstanceId) {
+    //       // For child nodes, position relative to parent
+    //       const parentComponent = systemData.components.find((c) =>
+    //         c.instances.some((i) => i.id === instance.parentInstanceId),
+    //       );
 
-          if (parentComponent) {
-            const parentId = buildInstanceLabel(
-              parentComponent.name,
-              instance.parentInstanceId,
-            );
-            const parentBounds = getNodeBounds(parentId);
+    //       if (parentComponent) {
+    //         const parentId = buildInstanceLabel(
+    //           parentComponent.name,
+    //           instance.parentInstanceId,
+    //         );
+    //         const parentBounds = getNodeBounds(parentId);
 
-            // Find all siblings that share the same parent
-            const siblings = systemData.components.flatMap((c) =>
-              c.instances
-                .filter((i) => i.parentInstanceId === instance.parentInstanceId)
-                .map((i) => buildInstanceLabel(c.name, i.id)),
-            );
+    //         // Find all siblings that share the same parent
+    //         const siblings = systemData.components.flatMap((c) =>
+    //           c.instances
+    //             .filter((i) => i.parentInstanceId === instance.parentInstanceId)
+    //             .map((i) => buildInstanceLabel(c.name, i.id)),
+    //         );
 
-            const siblingIndex = siblings.indexOf(fullInstanceId);
-            const row = Math.floor(siblingIndex / NODES_PER_ROW);
-            const col = siblingIndex % NODES_PER_ROW;
+    //         const siblingIndex = siblings.indexOf(fullInstanceId);
+    //         const row = Math.floor(siblingIndex / NODES_PER_ROW);
+    //         const col = siblingIndex % NODES_PER_ROW;
 
-            // Position relative to parent with padding
-            position = {
-              x:
-                parentBounds.x +
-                NODE_PADDING +
-                col * (DEFAULT_WIDTH + NODE_PADDING),
-              y:
-                parentBounds.y +
-                PARENT_CHILD_PADDING +
-                row * (DEFAULT_HEIGHT + NODE_PADDING) +
-                NODE_PADDING,
-            };
-          }
-        } else {
-          // For root nodes, position based on index
-          const rootInstances = systemData.components.flatMap((c) =>
-            c.instances
-              .filter((i) => !i.parentInstanceId)
-              .map((i) => buildInstanceLabel(c.name, i.id)),
-          );
+    //         // Position relative to parent with padding
+    //         position = {
+    //           x:
+    //             parentBounds.x +
+    //             NODE_PADDING +
+    //             col * (DEFAULT_WIDTH + NODE_PADDING),
+    //           y:
+    //             parentBounds.y +
+    //             PARENT_CHILD_PADDING +
+    //             row * (DEFAULT_HEIGHT + NODE_PADDING) +
+    //             NODE_PADDING,
+    //         };
+    //       }
+    //     } else {
+    //       // For root nodes, position based on index
+    //       const rootInstances = systemData.components.flatMap((c) =>
+    //         c.instances
+    //           .filter((i) => !i.parentInstanceId)
+    //           .map((i) => buildInstanceLabel(c.name, i.id)),
+    //       );
 
-          const rootIndex = rootInstances.indexOf(fullInstanceId);
-          const row = Math.floor(rootIndex / NODES_PER_ROW);
-          const col = rootIndex % NODES_PER_ROW;
+    //       const rootIndex = rootInstances.indexOf(fullInstanceId);
+    //       const row = Math.floor(rootIndex / NODES_PER_ROW);
+    //       const col = rootIndex % NODES_PER_ROW;
 
-          position = {
-            x: col * (DEFAULT_WIDTH + NODE_PADDING),
-            y: row * (DEFAULT_HEIGHT + NODE_PADDING),
-          };
-        }
+    //       position = {
+    //         x: col * (DEFAULT_WIDTH + NODE_PADDING),
+    //         y: row * (DEFAULT_HEIGHT + NODE_PADDING),
+    //       };
+    //     }
 
-        nodeDimensions.set(fullInstanceId, {
-          x: position.x,
-          y: position.y,
-          width,
-          height,
-        });
-      }
-      return nodeDimensions.get(fullInstanceId)!;
-    };
+    //     nodeDimensions.set(fullInstanceId, {
+    //       x: position.x,
+    //       y: position.y,
+    //       width,
+    //       height,
+    //     });
+    //   }
+    //   return nodeDimensions.get(fullInstanceId)!;
+    // };
 
     // Create edges for events between instances
     const processedEventPairs = new Set<string>();
@@ -474,54 +513,53 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
     // Build nodes for instances
     const boundsMap = new Map<string, NodeBounds>();
     systemData.components.forEach((component) => {
-      if (shouldIncludeComponent(component.name)) {
-        component.instances.forEach((instance) => {
-          if (!instance.id) return;
+      component.instances.forEach((instance) => {
+        if (!shouldIncludeInstance(instance.id)) return;
+        if (!instance.id) return;
 
-          const instanceId = buildInstanceLabel(component.name, instance.id);
-          const bounds = getNodeBoundsAlt(component, instance);
-          boundsMap.set(instanceId, bounds);
-          // Find the parent component and create the full parent instance ID
-          let parentNode: string | undefined;
-          if (instance.parentInstanceId) {
-            const parentComponent = systemData.components.find((c) =>
-              c.instances.some((i) => i.id === instance.parentInstanceId),
+        const instanceId = buildInstanceLabel(component.name, instance.id);
+        const bounds = getNodeBoundsAlt(component, instance);
+        boundsMap.set(instanceId, bounds);
+        // Find the parent component and create the full parent instance ID
+        let parentNode: string | undefined;
+        if (instance.parentInstanceId) {
+          const parentComponent = systemData.components.find((c) =>
+            c.instances.some((i) => i.id === instance.parentInstanceId),
+          );
+          if (parentComponent) {
+            parentNode = buildInstanceLabel(
+              parentComponent.name,
+              instance.parentInstanceId,
             );
-            if (parentComponent) {
-              parentNode = buildInstanceLabel(
-                parentComponent.name,
-                instance.parentInstanceId,
-              );
-            }
           }
+        }
 
-          newNodes.push({
-            id: instanceId,
-            type: "default",
-            data: {
-              label: `${component.name} (${instance.id})`,
-              hasChildren: (instance.childInstanceIds ?? []).length > 0,
-              sourceHandles:
-                handleConnections.get(instanceId)?.sourceHandles ?? [],
-              targetHandles:
-                handleConnections.get(instanceId)?.targetHandles ?? [],
-              instanceData: instance.data,
-            },
-            position: { x: bounds.x, y: bounds.y },
-            draggable: !instance.parentInstanceId,
-            parentNode,
-            expandParent: false,
-            style: {
-              width: bounds.width,
-              height: bounds.height,
-              padding: 16,
-              borderRadius: 4,
-              zIndex: 0,
-              border: "1px solid #999999",
-            },
-          });
+        newNodes.push({
+          id: instanceId,
+          type: "default",
+          data: {
+            label: `${component.name} (${instance.id})`,
+            hasChildren: (instance.childInstanceIds ?? []).length > 0,
+            sourceHandles:
+              handleConnections.get(instanceId)?.sourceHandles ?? [],
+            targetHandles:
+              handleConnections.get(instanceId)?.targetHandles ?? [],
+            instanceData: instance.data,
+          },
+          position: { x: bounds.x, y: bounds.y },
+          draggable: !instance.parentInstanceId,
+          parentNode,
+          expandParent: false,
+          style: {
+            width: bounds.width,
+            height: bounds.height,
+            padding: 16,
+            borderRadius: 4,
+            zIndex: 0,
+            border: "1px solid #999999",
+          },
         });
-      }
+      });
     });
 
     systemData.events?.forEach((event) => {
@@ -544,8 +582,8 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
       );
 
       if (
-        !shouldIncludeComponent(event.from) ||
-        !shouldIncludeComponent(event.to)
+        !shouldIncludeInstance(fromInstanceId) ||
+        !shouldIncludeInstance(toInstanceId)
       )
         return;
 
@@ -629,7 +667,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
 
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [systemData, setNodes, setEdges, filteredComponent]);
+  }, [systemData, setNodes, setEdges, filteredInstance]);
 
   // Initialize the visualization when the component mounts
   useEffect(() => {
@@ -643,16 +681,16 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
     >
       <div className="border-b border-gray-200 p-4">
         <Select
-          value={filteredComponent ?? "all"}
+          value={filteredInstance ?? "all"}
           onValueChange={(value: string) =>
-            setFilteredComponent(value === "all" ? null : value)
+            setFilteredInstance(value === "all" ? null : value)
           }
         >
-          <SelectTrigger className="w-[180px]" data-testid="component-filter">
-            <SelectValue>{filteredComponent ?? "All Components"}</SelectValue>
+          <SelectTrigger className="w-[180px]" data-testid="instance-filter">
+            <SelectValue>{filteredInstance ?? "All Instances"}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Components</SelectItem>
+            <SelectItem value="all">All Instances</SelectItem>
             {hierarchicalComponents &&
               renderHierarchicalItems(hierarchicalComponents)}
           </SelectContent>
@@ -684,7 +722,7 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
           >
             <Background color="#aaaaaa" gap={20} />
             <Controls showInteractive={true} />
-            <FitNodes filteredComponent={filteredComponent} nodes={nodes} />
+            <FitNodes filteredInstance={filteredInstance} nodes={nodes} />
           </ReactFlow>
         </ReactFlowProvider>
       </div>
