@@ -464,94 +464,89 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
     // Create edges for events between instances
     const processedEventPairs = new Set<string>();
 
-    // systemData.events?.forEach((event) => {
-    //   const fromComponent = systemData.components.find(
-    //     (c) => c.name === event.from,
-    //   );
-    //   const toComponent = systemData.components.find(
-    //     (c) => c.name === event.to,
-    //   );
+    systemData.events?.forEach((event) => {
+      const fromComponent = systemData.components.find(
+        (c) => c.name === event.from,
+      );
+      const toComponent = systemData.components.find(
+        (c) => c.name === event.to,
+      );
 
-    //   if (!fromComponent || !toComponent) return;
+      if (!fromComponent || !toComponent || !event.data) return;
 
-    //   // Create edges between all instances of the components
-    //   fromComponent.instances.forEach((fromInstance) => {
-    //     toComponent.instances.forEach((toInstance) => {
-    //       const fromInstanceId = `${event.from}_${fromInstance.id}`;
-    //       const toInstanceId = `${event.to}_${toInstance.id}`;
+      const fromInstanceId = `${event.from}_${event.data.instanceId}`;
+      const toInstanceId = `${event.to}_${event.data.targetInstanceId}`;
 
-    //       if (
-    //         !shouldIncludeComponent(event.from) ||
-    //         !shouldIncludeComponent(event.to)
-    //       )
-    //         return;
+      if (
+        !shouldIncludeComponent(event.from) ||
+        !shouldIncludeComponent(event.to)
+      )
+        return;
 
-    //       const eventPairKey = `${fromInstanceId}-${toInstanceId}`;
-    //       if (processedEventPairs.has(eventPairKey)) return;
+      const eventPairKey = `${fromInstanceId}-${toInstanceId}`;
+      if (processedEventPairs.has(eventPairKey)) return;
 
-    //       if (
-    //         fromInstanceId === toInstanceId ||
-    //         hasCircularEventRelationship(
-    //           fromInstanceId,
-    //           toInstanceId,
-    //           systemData.events ?? [],
-    //         )
-    //       ) {
-    //         return;
-    //       }
+      if (
+        fromInstanceId === toInstanceId ||
+        hasCircularEventRelationship(
+          fromInstanceId,
+          toInstanceId,
+          systemData.events ?? [],
+        )
+      ) {
+        return;
+      }
 
-    //       const sourceBounds = getNodeBounds(fromInstanceId);
-    //       const targetBounds = getNodeBounds(toInstanceId);
+      const sourceBounds = getNodeBounds(fromInstanceId);
+      const targetBounds = getNodeBounds(toInstanceId);
 
-    //       const fromPos = { x: sourceBounds.x, y: sourceBounds.y };
-    //       const toPos = { x: targetBounds.x, y: targetBounds.y };
+      const fromPos = { x: sourceBounds.x, y: sourceBounds.y };
+      const toPos = { x: targetBounds.x, y: targetBounds.y };
 
-    //       const { sourceHandle, targetHandle } = determineHandlePositions(
-    //         fromPos,
-    //         toPos,
-    //         sourceBounds,
-    //         targetBounds,
-    //       );
+      const { sourceHandle, targetHandle } = determineHandlePositions(
+        fromPos,
+        toPos,
+        sourceBounds,
+        targetBounds,
+      );
 
-    //       const sourceConn = handleConnections.get(fromInstanceId);
-    //       const targetConn = handleConnections.get(toInstanceId);
+      const sourceConn = handleConnections.get(fromInstanceId);
+      const targetConn = handleConnections.get(toInstanceId);
 
-    //       if (sourceConn && !sourceConn.sourceHandles.includes(sourceHandle)) {
-    //         sourceConn.sourceHandles.push(sourceHandle);
-    //       }
-    //       if (targetConn && !targetConn.targetHandles.includes(targetHandle)) {
-    //         targetConn.targetHandles.push(targetHandle);
-    //       }
+      if (sourceConn && !sourceConn.sourceHandles.includes(sourceHandle)) {
+        sourceConn.sourceHandles.push(sourceHandle);
+      }
+      if (targetConn && !targetConn.targetHandles.includes(targetHandle)) {
+        targetConn.targetHandles.push(targetHandle);
+      }
 
-    //       newEdges.push({
-    //         id: `${fromInstanceId}-${toInstanceId}-${event.name}`,
-    //         source: fromInstanceId,
-    //         target: toInstanceId,
-    //         type: "custom",
-    //         sourceHandle,
-    //         targetHandle,
-    //         data: {
-    //           testid: `edge-${fromInstanceId}-${toInstanceId}-${event.name}`,
-    //           eventName: event.name,
-    //           label: event.name,
-    //         },
-    //         style: {
-    //           stroke: "#be185d",
-    //           strokeWidth: 3,
-    //         },
-    //         markerEnd: {
-    //           type: MarkerType.ArrowClosed,
-    //           width: 24,
-    //           height: 24,
-    //           color: "#be185d",
-    //         },
-    //         zIndex: 1000,
-    //       });
+      newEdges.push({
+        id: `${fromInstanceId}-${toInstanceId}-${event.name}`,
+        source: fromInstanceId,
+        target: toInstanceId,
+        type: "custom",
+        sourceHandle,
+        targetHandle,
+        data: {
+          testid: `edge-${fromInstanceId}-${toInstanceId}-${event.name}`,
+          eventName: event.name,
+          label: event.name,
+        },
+        style: {
+          stroke: "#be185d",
+          strokeWidth: 3,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 24,
+          height: 24,
+          color: "#be185d",
+        },
+        zIndex: 1000,
+      });
 
-    //       processedEventPairs.add(eventPairKey);
-    //     });
-    //   });
-    // });
+      processedEventPairs.add(eventPairKey);
+    });
 
     // Build nodes for instances
     let c = 0;

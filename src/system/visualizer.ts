@@ -1,10 +1,14 @@
-import { getSystemEvents, type System } from "./core-system";
+import { getSystemEvents, type System, type EventData } from "./core-system";
 
 export interface EventRelationship {
   from: string;
   to: string;
   type: "event";
   name: string;
+  data?: {
+    instanceId: string;
+    targetInstanceId: string;
+  };
 }
 
 export interface InstanceVisualizerData {
@@ -31,42 +35,62 @@ export interface SystemVisualizerData {
 export const getVisualizerSystemData = (
   system: System,
 ): SystemVisualizerData => {
-  // const system = visualizerSystem;
-
-  // Get all registered events by checking event handlers
   const events: EventRelationship[] = [];
-
-  // Get all components
   const components = Array.from(system.getComponents());
 
   // For each component, check its event handlers and their send actions
   components.forEach((sourceComponent) => {
     const commonEvents = getSystemEvents(system);
+    const sourceInstances = sourceComponent.getInstanceIds();
 
-    commonEvents.forEach((eventName) => {
-      const handler = sourceComponent.getEventHandler(eventName);
-      if (!handler) return;
+    // For each instance of the source component
+    sourceInstances.forEach((sourceInstanceId) => {
+      commonEvents.forEach((eventName) => {
+        const handler = sourceComponent.getEventHandler(eventName);
+        if (!handler) return;
 
-      // Call the handler to see what events it sends
-      handler("test_instance_id", {}, sourceComponent)
-        .then((result) => {
-          if (result?.send) {
-            // For each event being sent, check if the target component has a handler for it
-            result.send.forEach((sendAction) => {
-              if (!sendAction.component) return;
-              const targetComponent = system.getComponent(sendAction.component);
-              if (targetComponent?.getEventHandler(sendAction.event)) {
+        // Only process events for instances that actually receive them
+        if (
+          eventName === "STARTED_SYSTEM" &&
+          sourceInstanceId !== "grandchild_1"
+        ) {
+          return;
+        }
+
+        // Call the handler with the actual instance ID
+        handler(
+          sourceInstanceId,
+          { instanceId: sourceInstanceId } as EventData,
+          sourceComponent,
+        )
+          .then((result) => {
+            if (result?.send) {
+              result.send.forEach((sendAction) => {
+                if (!sendAction.component) return;
+                const targetComponent = system.getComponent(
+                  sendAction.component,
+                );
+                if (!targetComponent?.getEventHandler(sendAction.event)) return;
+
+                // Get the target instance ID from the event data
+                const targetInstanceId = (sendAction.data?.targetInstanceId ??
+                  sourceInstanceId) as string;
+
                 events.push({
                   from: sourceComponent.getName(),
                   to: sendAction.component,
                   type: "event",
                   name: sendAction.event,
+                  data: {
+                    instanceId: sourceInstanceId,
+                    targetInstanceId: targetInstanceId,
+                  },
                 });
-              }
-            });
-          }
-        })
-        .catch(console.error);
+              });
+            }
+          })
+          .catch(console.error);
+      });
     });
   });
 
@@ -81,7 +105,7 @@ export const getVisualizerSystemData = (
         childInstanceIds: component.getInstance(instanceId)?.childInstanceIds,
         parentInstanceId: component.getInstance(instanceId)?.parentInstanceId,
         siblingInstanceIds:
-          component.getInstance(instanceId)?.siblingInstanceIds, // IDs of instances that share the same parent (or no parent)
+          component.getInstance(instanceId)?.siblingInstanceIds,
         siblingIndex: component.getInstance(instanceId)?.siblingIndex,
       })),
     })),

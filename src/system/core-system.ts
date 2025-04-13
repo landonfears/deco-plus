@@ -11,7 +11,7 @@ export type ComponentData = Record<string, unknown> & {
   siblingIndex?: number; // Order number of the instance among its siblings
 };
 // Event names should follow a past tense verb format to indicate "something happened"
-type EventData = Record<string, unknown>;
+export type EventData = Record<string, unknown>;
 
 // Event handler type that can update component data and send new events
 type EventHandler = (
