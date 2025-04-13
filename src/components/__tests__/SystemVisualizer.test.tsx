@@ -5,31 +5,38 @@ import { getVisualizerSystemData } from "~/system/visualizer";
 import { system } from "~/system/visualizer-system";
 
 describe("SystemVisualizer", () => {
-  it("renders the visualizer container", () => {
-    const systemData = getVisualizerSystemData(system);
+  it("renders the visualizer container", async () => {
+    const systemData = await getVisualizerSystemData(system);
     render(<SystemVisualizerWithProvider systemData={systemData} />);
-    expect(screen.getByTestId("system-visualizer")).toBeInTheDocument();
+
+    // Wait for loading to complete
+    await waitFor(() => {
+      expect(screen.getByTestId("rf__wrapper")).toBeInTheDocument();
+    });
   });
 
   it("renders all component nodes with proper nesting", async () => {
-    const systemData = getVisualizerSystemData(system);
+    const systemData = await getVisualizerSystemData(system);
     render(<SystemVisualizerWithProvider systemData={systemData} />);
 
-    // Check for all component nodes
-    expect(screen.getByTestId("node-parent (parent_1)")).toBeInTheDocument();
-    expect(screen.getByTestId("node-child1 (child1_1)")).toBeInTheDocument();
-    expect(screen.getByTestId("node-child2 (child2_1)")).toBeInTheDocument();
-    expect(
-      screen.getByTestId("node-grandchild (grandchild_1)"),
-    ).toBeInTheDocument();
+    // Wait for loading to complete and nodes to be rendered
+    await waitFor(() => {
+      // Check for all component nodes
+      expect(screen.getByTestId("node-parent (parent_1)")).toBeInTheDocument();
+      expect(screen.getByTestId("node-child1 (child1_1)")).toBeInTheDocument();
+      expect(screen.getByTestId("node-child2 (child2_1)")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("node-grandchild (grandchild_1)"),
+      ).toBeInTheDocument();
 
-    // Verify parent nodes have children containers
-    expect(
-      screen.getByTestId("node-parent (parent_1)-children"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("node-child1 (child1_1)-children"),
-    ).toBeInTheDocument();
+      // Verify parent nodes have children containers
+      expect(
+        screen.getByTestId("node-parent (parent_1)-children"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId("node-child1 (child1_1)-children"),
+      ).toBeInTheDocument();
+    });
 
     // Wait for React Flow to initialize and render edges
     await waitFor(
@@ -38,7 +45,7 @@ describe("SystemVisualizer", () => {
         const edgeGroup = wrapper.querySelector(".react-flow__edges g");
         expect(edgeGroup).toBeInTheDocument();
       },
-      { timeout: 100 },
+      { timeout: 1000 },
     );
 
     // Verify parent4 has no children
@@ -47,28 +54,35 @@ describe("SystemVisualizer", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("handles empty system data", () => {
+  it("handles empty system data", async () => {
     render(<SystemVisualizerWithProvider systemData={{ components: [] }} />);
-    expect(screen.getByTestId("system-visualizer")).toBeInTheDocument();
+
+    // Wait for loading to complete
+    await waitFor(() => {
+      expect(screen.getByTestId("rf__wrapper")).toBeInTheDocument();
+    });
   });
 });
 
 describe("SystemVisualizer Filtering", () => {
-  const systemData = getVisualizerSystemData(system);
-
   it("renders all instances when no filter is applied", async () => {
+    const systemData = await getVisualizerSystemData(system);
     render(<SystemVisualizerWithProvider systemData={systemData} />);
 
-    // Check that all components are rendered
-    expect(screen.getByTestId("node-parent (parent_1)")).toBeInTheDocument();
-    expect(screen.getByTestId("node-child1 (child1_1)")).toBeInTheDocument();
-    expect(screen.getByTestId("node-child2 (child2_1)")).toBeInTheDocument();
-    expect(
-      screen.getByTestId("node-grandchild (grandchild_1)"),
-    ).toBeInTheDocument();
+    // Wait for loading to complete and nodes to be rendered
+    await waitFor(() => {
+      // Check that all components are rendered
+      expect(screen.getByTestId("node-parent (parent_1)")).toBeInTheDocument();
+      expect(screen.getByTestId("node-child1 (child1_1)")).toBeInTheDocument();
+      expect(screen.getByTestId("node-child2 (child2_1)")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("node-grandchild (grandchild_1)"),
+      ).toBeInTheDocument();
+    });
   });
 
-  it("filters instances when a child component is selected", () => {
+  it("filters instances when a child component is selected", async () => {
+    const systemData = await getVisualizerSystemData(system);
     render(
       <SystemVisualizerWithProvider
         systemData={systemData}
@@ -76,18 +90,22 @@ describe("SystemVisualizer Filtering", () => {
       />,
     );
 
-    // Check that only Root and its children are visible
-    expect(screen.getByTestId("node-parent (parent_1)")).toBeInTheDocument();
-    expect(screen.getByTestId("node-child1 (child1_1)")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("node-child2 (child2_1)"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("node-grandchild (grandchild_1)"),
-    ).toBeInTheDocument();
+    // Wait for loading to complete and nodes to be rendered
+    await waitFor(() => {
+      // Check that only Root and its children are visible
+      expect(screen.getByTestId("node-parent (parent_1)")).toBeInTheDocument();
+      expect(screen.getByTestId("node-child1 (child1_1)")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("node-child2 (child2_1)"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId("node-grandchild (grandchild_1)"),
+      ).toBeInTheDocument();
+    });
   });
 
-  it("filters instances when another child component is selected", () => {
+  it("filters instances when another child component is selected", async () => {
+    const systemData = await getVisualizerSystemData(system);
     render(
       <SystemVisualizerWithProvider
         systemData={systemData}
@@ -95,16 +113,17 @@ describe("SystemVisualizer Filtering", () => {
       />,
     );
 
-    // Check that only Root and its children are visible
-    expect(screen.getByTestId("node-parent (parent_2)")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("node-child1 (child1_1)"),
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId("node-child2 (child2_1)")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("node-grandchild (grandchild_1)"),
-    ).not.toBeInTheDocument();
+    // Wait for loading to complete and nodes to be rendered
+    await waitFor(() => {
+      // Check that only Root and its children are visible
+      expect(screen.getByTestId("node-parent (parent_2)")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("node-child1 (child1_1)"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("node-child2 (child2_1)")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("node-grandchild (grandchild_1)"),
+      ).not.toBeInTheDocument();
+    });
   });
-
-  // TODO: Tests do not render edges in React Flow
 });
