@@ -149,6 +149,13 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
       // Check if this is the filtered instance
       if (instanceId === filteredInstance) return true;
 
+      // Check if this is a system component instance
+      const componentName = getComponentByInstanceId(
+        resolvedSystemData!,
+        instanceId,
+      );
+      if (componentName === "system") return true;
+
       // Get all ancestors
       const getAncestors = (currentId: string): string[] => {
         const current = getInstanceById(resolvedSystemData!, currentId);
@@ -180,7 +187,6 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
     };
 
     // Initialize handle connections for all nodes
-    console.log("resolvedSystemData", resolvedSystemData);
     resolvedSystemData?.components.forEach((component) => {
       component.instances.forEach((instance) => {
         if (shouldIncludeInstance(instance.id)) {
@@ -418,122 +424,6 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
       const bounds = nodeDimensions.get(instanceLabel);
       return bounds!;
     };
-    // const getNodeBounds = (fullInstanceId: string): NodeBounds => {
-    //   if (!nodeDimensions.has(fullInstanceId)) {
-    //     const { componentName, instanceId } =
-    //       splitInstanceLabel(fullInstanceId);
-    //     if (!componentName || !instanceId) {
-    //       return { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
-    //     }
-
-    //     const component = systemData.components.find(
-    //       (c) => c.name === componentName,
-    //     );
-    //     const instance = component?.instances.find((i) => i.id === instanceId);
-
-    //     if (!component || !instance) {
-    //       return { x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
-    //     }
-
-    //     // Get child instances
-    //     const childInstances = (instance.childInstanceIds ?? [])
-    //       .map((childId) => {
-    //         const childComponent = systemData.components.find((c) =>
-    //           c.instances.some((i) => i.id === childId),
-    //         );
-    //         return childComponent
-    //           ? buildInstanceLabel(childComponent.name, childId)
-    //           : null;
-    //       })
-    //       .filter((id): id is string => id !== null);
-
-    //     // Calculate dimensions based on children
-    //     let width = DEFAULT_WIDTH;
-    //     let height = DEFAULT_HEIGHT;
-
-    //     if (childInstances.length > 0) {
-    //       // Calculate how many rows and columns we need
-    //       const numChildren = childInstances.length;
-    //       const numCols = Math.min(NODES_PER_ROW, numChildren);
-    //       const numRows = Math.ceil(numChildren / NODES_PER_ROW);
-
-    //       // Width is based on actual number of columns needed
-    //       width = numCols * DEFAULT_WIDTH + (numCols + 1) * NODE_PADDING;
-
-    //       // Height is based on number of rows, with padding
-    //       height =
-    //         numRows * DEFAULT_HEIGHT +
-    //         (numRows + 1) * NODE_PADDING +
-    //         PARENT_CHILD_PADDING;
-    //     }
-
-    //     // Calculate position
-    //     let position = { x: 0, y: 0 };
-
-    //     if (instance.parentInstanceId) {
-    //       // For child nodes, position relative to parent
-    //       const parentComponent = systemData.components.find((c) =>
-    //         c.instances.some((i) => i.id === instance.parentInstanceId),
-    //       );
-
-    //       if (parentComponent) {
-    //         const parentId = buildInstanceLabel(
-    //           parentComponent.name,
-    //           instance.parentInstanceId,
-    //         );
-    //         const parentBounds = getNodeBounds(parentId);
-
-    //         // Find all siblings that share the same parent
-    //         const siblings = systemData.components.flatMap((c) =>
-    //           c.instances
-    //             .filter((i) => i.parentInstanceId === instance.parentInstanceId)
-    //             .map((i) => buildInstanceLabel(c.name, i.id)),
-    //         );
-
-    //         const siblingIndex = siblings.indexOf(fullInstanceId);
-    //         const row = Math.floor(siblingIndex / NODES_PER_ROW);
-    //         const col = siblingIndex % NODES_PER_ROW;
-
-    //         // Position relative to parent with padding
-    //         position = {
-    //           x:
-    //             parentBounds.x +
-    //             NODE_PADDING +
-    //             col * (DEFAULT_WIDTH + NODE_PADDING),
-    //           y:
-    //             parentBounds.y +
-    //             PARENT_CHILD_PADDING +
-    //             row * (DEFAULT_HEIGHT + NODE_PADDING) +
-    //             NODE_PADDING,
-    //         };
-    //       }
-    //     } else {
-    //       // For root nodes, position based on index
-    //       const rootInstances = systemData.components.flatMap((c) =>
-    //         c.instances
-    //           .filter((i) => !i.parentInstanceId)
-    //           .map((i) => buildInstanceLabel(c.name, i.id)),
-    //       );
-
-    //       const rootIndex = rootInstances.indexOf(fullInstanceId);
-    //       const row = Math.floor(rootIndex / NODES_PER_ROW);
-    //       const col = rootIndex % NODES_PER_ROW;
-
-    //       position = {
-    //         x: col * (DEFAULT_WIDTH + NODE_PADDING),
-    //         y: row * (DEFAULT_HEIGHT + NODE_PADDING),
-    //       };
-    //     }
-
-    //     nodeDimensions.set(fullInstanceId, {
-    //       x: position.x,
-    //       y: position.y,
-    //       width,
-    //       height,
-    //     });
-    //   }
-    //   return nodeDimensions.get(fullInstanceId)!;
-    // };
 
     // Create edges for events between instances
     const processedEventPairs = new Set<string>();
@@ -615,9 +505,12 @@ export const SystemComponentVisualizer: FC<SystemVisualizerProps> = ({
         event.data.targetInstanceId,
       );
 
+      const fromInstanceIdPart = splitInstanceLabel(fromInstanceId)?.instanceId;
+      const toInstanceIdPart = splitInstanceLabel(toInstanceId)?.instanceId;
+
       if (
-        !shouldIncludeInstance(fromInstanceId) ||
-        !shouldIncludeInstance(toInstanceId)
+        !shouldIncludeInstance(fromInstanceIdPart) ||
+        !shouldIncludeInstance(toInstanceIdPart)
       )
         return;
 
